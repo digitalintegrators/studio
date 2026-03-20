@@ -27,13 +27,11 @@ const STANDARD_RATIOS: Partial<Record<AspectRatio, string>> = {
 export function AspectRatioSelect({ value, onChange, customDimensions, onCustomDimensionsChange }: AspectRatioSelectProps) {
     const [isOpen, setIsOpen] = useState(false);
 
-    // Use current dimensions or defaults when opening the popover
     const [tempWidth, setTempWidth] = useState("");
     const [tempHeight, setTempHeight] = useState("");
 
     const handleOpenChange = (open: boolean) => {
         if (open) {
-            // Initialize with current dimensions when opening
             setTempWidth(customDimensions?.width?.toString() || "1920");
             setTempHeight(customDimensions?.height?.toString() || "1080");
         }
@@ -56,7 +54,6 @@ export function AspectRatioSelect({ value, onChange, customDimensions, onCustomD
         }
     };
 
-    // Obtenemos la etiqueta a mostrar en el botón principal
     const displayLabel = (() => {
         if (value === "custom" && customDimensions) {
             return `${customDimensions.width}x${customDimensions.height}`;
@@ -80,11 +77,9 @@ export function AspectRatioSelect({ value, onChange, customDimensions, onCustomD
                 </button>
             </PopoverTrigger>
 
-            {/* Hice el Popover un poco más ancho (w-64) para que los inputs quepan bien uno al lado del otro */}
             <PopoverContent className="w-64 p-2" align="start">
                 <div className="flex flex-col gap-1">
 
-                    {/* SECCIÓN 1: Opciones Predefinidas */}
                     <div className="flex flex-col">
                         {(Object.keys(STANDARD_RATIOS) as AspectRatio[]).map((ratio) => (
                             <button
@@ -107,7 +102,6 @@ export function AspectRatioSelect({ value, onChange, customDimensions, onCustomD
 
                     <div className="h-px bg-border my-2 mx-1" />
 
-                    {/* SECCIÓN 2: Formulario Personalizado */}
                     <div className="px-2 pb-1">
                         <div className="flex items-center justify-between mb-2">
                             <span className="text-xs font-medium text-foreground">Personalizado</span>

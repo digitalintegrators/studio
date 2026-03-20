@@ -1,10 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Icon } from "@iconify/react";
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { ExportQuality } from "@/hooks/useVideoExport";
 import { useState } from "react";
 
@@ -35,7 +31,7 @@ export function ExportDropdown({ onExport, exportProgress }: ExportDropdownProps
             <PopoverTrigger asChild>
                 <Button
                     variant="primary"
-                    className="px-3 py-2 text-sm gap-2 min-w-[110px]"
+                    className="px-3 py-2 text-sm gap-2 min-w-27.5"
                     size="sm"
                     disabled={isExporting}
                 >
@@ -50,15 +46,15 @@ export function ExportDropdown({ onExport, exportProgress }: ExportDropdownProps
                 className="w-64 bg-[#1C1C1F] border-white/10 text-white shadow-2xl p-0 overflow-hidden"
             >
                 <div className="flex flex-col bg-black border border-white/10 rounded-xl overflow-hidden shadow-2xl">
-                    <div className="px-4 py-3 border-b border-white/10 bg-white/[0.02]">
+                    <div className="px-4 py-3 border-b border-white/10 bg-white/5">
                         <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-white/50">
                             Calidad de exportación
                         </span>
                     </div>
 
-                    <div className="flex flex-col max-h-[380px] overflow-y-auto custom-scrollbar">
+                    <div className="flex flex-col max-h-95 overflow-y-auto custom-scrollbar">
                         <button
-                            className="group flex flex-col items-start gap-1.5 p-4 hover:bg-white/[0.03] transition-all text-left border-b border-white/10"
+                            className="group flex flex-col items-start gap-1.5 p-4 hover:bg-white/5 transition-all text-left border-b border-white/10"
                             onClick={() => handleExport("4k")}
                         >
                             <div className="flex items-center justify-between w-full">
@@ -71,7 +67,7 @@ export function ExportDropdown({ onExport, exportProgress }: ExportDropdownProps
                         </button>
 
                         <button
-                            className="group flex flex-col items-start gap-1.5 p-4 hover:bg-white/[0.03] transition-all text-left border-b border-white/10"
+                            className="group flex flex-col items-start gap-1.5 p-4 hover:bg-white/5 transition-all text-left border-b border-white/10"
                             onClick={() => handleExport("2k")}
                         >
                             <div className="flex items-center justify-between w-full">
@@ -84,7 +80,7 @@ export function ExportDropdown({ onExport, exportProgress }: ExportDropdownProps
                         </button>
 
                         <button
-                            className="group flex flex-col items-start gap-1.5 p-4 hover:bg-white/[0.03] transition-all text-left border-b border-white/10"
+                            className="group flex flex-col items-start gap-1.5 p-4 hover:bg-white/5 transition-all text-left border-b border-white/10"
                             onClick={() => handleExport("1080p")}
                         >
                             <span className="text-sm font-medium text-white group-hover:text-white/80 transition-colors">1080p Full HD</span>
@@ -92,7 +88,7 @@ export function ExportDropdown({ onExport, exportProgress }: ExportDropdownProps
                         </button>
 
                         <button
-                            className="group flex flex-col items-start gap-1.5 p-4 hover:bg-white/[0.03] transition-all text-left border-b border-white/10"
+                            className="group flex flex-col items-start gap-1.5 p-4 hover:bg-white/5 transition-all text-left border-b border-white/10"
                             onClick={() => handleExport("720p")}
                         >
                             <span className="text-sm font-medium text-white group-hover:text-white/80 transition-colors">720p HD</span>
@@ -100,7 +96,7 @@ export function ExportDropdown({ onExport, exportProgress }: ExportDropdownProps
                         </button>
 
                         <button
-                            className="group flex flex-col items-start gap-1.5 p-4 hover:bg-white/[0.03] transition-all text-left border-b border-white/10"
+                            className="group flex flex-col items-start gap-1.5 p-4 hover:bg-white/5 transition-all text-left border-b border-white/10"
                             onClick={() => handleExport("480p")}
                         >
                             <span className="text-sm font-medium text-white group-hover:text-white/80 transition-colors">480p SD</span>
@@ -108,7 +104,7 @@ export function ExportDropdown({ onExport, exportProgress }: ExportDropdownProps
                         </button>
 
                         <button
-                            className="group flex flex-col items-start gap-1.5 p-4 hover:bg-orange-500/[0.04] transition-all text-left"
+                            className="group flex flex-col items-start gap-1.5 p-4 hover:bg-orange-500/5 transition-all text-left"
                             onClick={() => handleExport("gif")}
                         >
                             <div className="flex items-center gap-2">

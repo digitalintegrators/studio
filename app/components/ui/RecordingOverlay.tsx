@@ -1,18 +1,20 @@
 "use client";
 
-import { useRecording } from "@/hooks/RecordingContext";
+import { useScreenRecording } from "@/hooks/useScreenRecording";
 
 export default function RecordingOverlay() {
-    const { state, countdown, recordingTime, stopRecording, isCountdown, isRecording, isProcessing } = useRecording();
+    const { state, countdown, recordingTime, stopRecording, isCountdown, isRecording, isProcessing } = useScreenRecording();
 
     if (state === "idle") return null;
 
     const formatTime = (seconds: number) => {
-        return seconds.toString().padStart(2, '0');
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
     return (
-        <div className="fixed inset-0 z-50 pointer-events-none">
+        <div className="fixed inset-0 z-9999 pointer-events-none">
             {isCountdown && (
                 <div className="absolute inset-0 bg-[#000B13]/95 backdrop-blur-md flex items-center justify-center z-50">
                     <div className="flex flex-col items-center scale-110">
@@ -45,7 +47,7 @@ export default function RecordingOverlay() {
             )}
 
             {isRecording && (
-                <div className="absolute top-20 left-1/2 -translate-x-1/2 pointer-events-auto">
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 pointer-events-auto">
                     <div className="flex items-center gap-4 bg-[#1E1E20] border border-white/10 rounded-full px-5 py-3 shadow-2xl">
                         <div className="flex items-center gap-3">
                             <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
@@ -69,7 +71,7 @@ export default function RecordingOverlay() {
                 <div className="absolute inset-0 bg-[#000B13]/95 backdrop-blur-md flex items-center justify-center pointer-events-auto z-50">
                     <div className="text-center">
                         <div className="relative w-20 h-20 mb-8 mx-auto">
-                            <div className="absolute inset-0 rounded-full border-4 border-white/10" />
+                            <div className="absolute inset-0 rounded-full border-4 border-white/5" />
 
                             <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-[#00A3FF] border-r-[#00A3FF]/30 animate-spin shadow-[0_0_20px_rgba(0,163,255,0.2)]" />
 
