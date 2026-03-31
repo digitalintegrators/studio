@@ -145,8 +145,8 @@ export default function Login() {
 
           <p className="mt-12 text-md text-neutral-300 leading-relaxed font-light">
             Al continuar, aceptas nuestros: <br />
-            <Link href="/terms" className="text-neutral-300 hover:text-white underline decoration-white/30 underline-offset-4 transition-colors">Términos de Servicio</Link> y{" "}
-            <Link href="/privacy" className="text-neutral-300 hover:text-white underline decoration-white/30 underline-offset-4 transition-colors">Política de Privacidad</Link>.
+            <Link href="/terms" target="_blank" className="text-neutral-300 hover:text-white underline decoration-white/30 underline-offset-4 transition-colors">Términos de Servicio</Link> y{" "}
+            <Link href="/privacy" target="_blank" className="text-neutral-300 hover:text-white underline decoration-white/30 underline-offset-4 transition-colors">Política de Privacidad</Link>.
           </p>
         </div>
       </div>
@@ -154,14 +154,14 @@ export default function Login() {
         <div className="absolute -top-[10%] -left-[10%] w-[70%] h-[70%] bg-cyan-600/20 rounded-full blur-[80px] pointer-events-none group-hover:bg-cyan-500/30 transition-colors duration-1000"></div>
         <div className="absolute -bottom-[10%] -right-[10%] w-[60%] h-[60%] bg-purple-900/10 rounded-full blur-[80px] pointer-events-none group-hover:bg-purple-700/50 transition-colors duration-1000"></div>
         <div className="absolute inset-0 bg-[radial-gradient(white_0.5px,transparent_0.5px)] bg-size-[40px_40px] opacity-[0.4] pointer-events-none"></div>
-        <div className="absolute inset-0 transition-transform duration-1000 ease-in-out group-hover:scale-105">
+        <div className="absolute inset-0 transition-transform duration-1000 ease-in-out scale-110 group-hover:scale-125">
           <img
-            src="/images/pages/banner-login.avif"
+            src="/images/pages/openvid-login.webp"
             alt="Cinematic Shot BW"
             className="absolute inset-0 w-full h-full object-contain mix-blend-luminosity opacity-70 transition-all duration-1000 ease-in-out [clip-path:inset(0_0_0_50%)] group-hover:opacity-0"
           />
           <img
-            src="/images/pages/banner-login.avif"
+            src="/images/pages/openvid-login.webp"
             alt="Cinematic Shot Color"
             className="absolute inset-0 w-full h-full object-contain transition-all duration-1000 ease-in-out [clip-path:inset(0_50%_0_0)] group-hover:[clip-path:inset(0_0_0_0%)]"
           />
@@ -169,7 +169,7 @@ export default function Login() {
             className="absolute inset-0 pointer-events-none mix-blend-screen opacity-40 transition-opacity duration-1000"
             style={{
               background: 'linear-gradient(130deg, rgba(0, 210, 255, 0.4), rgba(58, 123, 213, 0.4) 41.07%, rgba(106, 17, 203, 0.4) 76.05%)',
-              maskImage: 'url(/images/metadata/banner-login.avif)',
+              maskImage: 'url(/images/pages/openvid-login.webp)',
               maskSize: 'contain',
               maskRepeat: 'no-repeat',
               maskPosition: 'center'
@@ -178,7 +178,6 @@ export default function Login() {
         </div>
         <div className="absolute inset-0 bg-[radial-gradient(#ffffff22_1px,transparent_1px)] bg-size-[24px_24px] opacity-20 pointer-events-none z-10"></div>
         <div className="absolute inset-0 bg-linear-to-t from-black via-transparent to-black/60 pointer-events-none z-10"></div>
-        <div className="absolute top-1/2 left-0 w-full h-px bg-white/10 pointer-events-none z-20"></div>
         <div className="absolute top-0 left-1/2 w-px h-full bg-white/20 group-hover:bg-transparent transition-colors duration-1000 pointer-events-none z-20"></div>
       </div>
 
