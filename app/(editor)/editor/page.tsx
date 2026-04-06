@@ -13,8 +13,8 @@ import type { ExportQuality, Tool, BackgroundTab, VideoCanvasHandle, BackgroundC
 import type { TrimRange } from "@/types/timeline.types";
 import type { MockupConfig } from "@/types/mockup.types";
 import type { EditorState } from "@/types/editor-state.types";
-import type { CursorConfig, CursorRecordingData } from "@/types/cursor.types";
-import { DEFAULT_CURSOR_CONFIG, EMPTY_CURSOR_DATA } from "@/types/cursor.types";
+//import type { CursorConfig, CursorRecordingData } from "@/types/cursor.types";
+// import { DEFAULT_CURSOR_CONFIG, EMPTY_CURSOR_DATA } from "@/types/cursor.types";
 import { createInitialEditorState } from "@/types/editor-state.types";
 import { DEFAULT_MOCKUP_CONFIG, getMockupDefaultConfig } from "@/types/mockup.types";
 import type { CanvasElement } from "@/types/canvas-elements.types";
@@ -201,8 +201,9 @@ export default function Editor() {
     const [selectedAudioTrackId, setSelectedAudioTrackId] = useState<string | null>(null);
 
     // Cursor state
-    const [cursorConfig, setCursorConfig] = useState<CursorConfig>(DEFAULT_CURSOR_CONFIG);
-    const [cursorData, setCursorData] = useState<CursorRecordingData>(EMPTY_CURSOR_DATA);
+    // Cursor state
+    // const [cursorConfig, setCursorConfig] = useState<CursorConfig>(DEFAULT_CURSOR_CONFIG);
+    // const [cursorData, setCursorData] = useState<CursorRecordingData>(EMPTY_CURSOR_DATA);
     const [isRecordedVideo, setIsRecordedVideo] = useState<boolean>(false);
 
     // Audio trim modal state
@@ -609,9 +610,9 @@ export default function Editor() {
     }, []);
 
     // Cursor config change handler
-    const handleCursorConfigChange = useCallback((config: Partial<CursorConfig>) => {
+    /* const handleCursorConfigChange = useCallback((config: Partial<CursorConfig>) => {
         setCursorConfig(prev => ({ ...prev, ...config }));
-    }, []);
+    }, []);*/
 
     const handleSelectAudioTrack = useCallback((trackId: string | null) => {
         setSelectedAudioTrackId(trackId);
@@ -764,15 +765,15 @@ export default function Editor() {
                         // Load cursor data if available (only for recorded videos)
                         if ('isRecordedVideo' in videoToLoad && videoToLoad.isRecordedVideo) {
                             setIsRecordedVideo(true);
-                            if ('cursorData' in videoToLoad && videoToLoad.cursorData) {
+                            /*if ('cursorData' in videoToLoad && videoToLoad.cursorData) {
                                 setCursorData(videoToLoad.cursorData);
                             } else {
                                 setCursorData(EMPTY_CURSOR_DATA);
-                            }
+                            }*/
                         } else {
                             // Uploaded video - no cursor data
                             setIsRecordedVideo(false);
-                            setCursorData(EMPTY_CURSOR_DATA);
+                            //setCursorData(EMPTY_CURSOR_DATA);
                         }
 
                         // Clear undo/redo history when loading a new video
@@ -1334,10 +1335,10 @@ export default function Editor() {
                                         videoDuration={videoDuration}
                                         videoHasAudioTrack={videoHasAudioTrack}
                                         // Cursor props
-                                        cursorConfig={cursorConfig}
+                                        /*cursorConfig={cursorConfig}
                                         cursorData={cursorData}
                                         isRecordedVideo={isRecordedVideo}
-                                        onCursorConfigChange={handleCursorConfigChange}
+                                        onCursorConfigChange={handleCursorConfigChange}*/
                                     />
                                 </Suspense>
                             </motion.div>
@@ -1420,8 +1421,8 @@ export default function Editor() {
                         onElementUpdate={updateCanvasElement}
                         onElementSelect={selectCanvasElement}
                         // Cursor overlay props
-                        cursorConfig={cursorConfig}
-                        cursorData={cursorData}
+                        /*cursorConfig={cursorConfig}
+                        cursorData={cursorData}*/
                         onEnded={() => {
                             setIsPlaying(false);
                             justEndedRef.current = true;
@@ -1549,10 +1550,10 @@ export default function Editor() {
                 videoDuration={videoDuration}
                 videoHasAudioTrack={videoHasAudioTrack}
                 // Cursor props
-                cursorConfig={cursorConfig}
+               /*cursorConfig={cursorConfig}
                 cursorData={cursorData}
                 isRecordedVideo={isRecordedVideo}
-                onCursorConfigChange={handleCursorConfigChange}
+                onCursorConfigChange={handleCursorConfigChange}*/
             />
 
             <Suspense fallback={null}>

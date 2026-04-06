@@ -540,55 +540,40 @@ export const VideoCanvas = forwardRef<VideoCanvasHandle, VideoCanvasProps>(funct
         const zoomCenterY = canvasHeight / 2;
 
         if (zoomState.scale !== 1 || zoomState.rotateX !== 0 || zoomState.rotateY !== 0) {
-            const focusOffsetX = (50 - zoomState.focusX) / 100 * canvasWidth * (zoomState.scale - 1) * 2;
-            const focusOffsetY = (50 - zoomState.focusY) / 100 * canvasHeight * (zoomState.scale - 1) * 2;
 
-            ctx.translate(zoomCenterX + focusOffsetX, zoomCenterY + focusOffsetY);
+            // Punto de enfoque en píxeles
+            const focusPxX = (zoomState.focusX / 100) * canvasWidth;
+            const focusPxY = (zoomState.focusY / 100) * canvasHeight;
 
-            // 3D solo si hay rotación — NO tocar el ctx si no hay 3D
+            // 1. Trasladar al punto de enfoque (centro de toda la transformación)
+            ctx.translate(focusPxX, focusPxY);
+
+            // 2. Aplicar 3D centrado en el punto de enfoque
             if (zoomState.perspective > 0 && (zoomState.rotateX !== 0 || zoomState.rotateY !== 0)) {
                 const rotateXRad = (zoomState.rotateX * Math.PI) / 180;
                 const rotateYRad = (zoomState.rotateY * Math.PI) / 180;
-                const d = zoomState.perspective; // 600px
 
-                // Punto de enfoque en píxeles (origen de la perspectiva)
-                const focusPxX = (zoomState.focusX / 100) * canvasWidth;
-                const focusPxY = (zoomState.focusY / 100) * canvasHeight;
-
-                // Trasladar al punto de enfoque para que la perspectiva parta desde ahí
-                ctx.translate(focusPxX, focusPxY);
-
-                // Perspectiva real usando tangente (igual que CSS perspective)
-                // CSS perspective: un punto a distancia d del plano, rotado θ grados
-                // produce escala = d / (d - z) donde z = dist * sin(θ)
                 const tanY = Math.tan(rotateYRad);
                 const tanX = Math.tan(rotateXRad);
-
-                // Matriz de perspectiva 2D aproximada a CSS perspective + rotateX/Y:
-                // - skewX/Y crean el efecto trapezoidal
-                // - scaleX/Y compensan la profundidad
-                // Valores sin perspectiveFactor para que el efecto sea igual de fuerte
                 const scaleX = 1 / Math.sqrt(1 + tanY * tanY);
                 const scaleY = 1 / Math.sqrt(1 + tanX * tanX);
                 const skewX = tanY * scaleX;
                 const skewY = tanX * scaleY;
 
-                ctx.transform(
-                    scaleX,  // a
-                    skewY,   // b
-                    skewX,   // c  
-                    scaleY,  // d
-                    0,       // e
-                    0        // f
-                );
-
-                // Volver al origen
-                ctx.translate(-focusPxX, -focusPxY);
+                ctx.transform(scaleX, skewY, skewX, scaleY, 0, 0);
             }
 
-            // Zoom siempre se aplica (con o sin 3D)
+            // 3. Aplicar zoom: escalar desde el punto de enfoque
+            // El offset mueve el contenido para que focusX/Y quede centrado en pantalla
+            const offsetX = (zoomCenterX - focusPxX) * (zoomState.scale - 1);
+            const offsetY = (zoomCenterY - focusPxY) * (zoomState.scale - 1);
             ctx.scale(zoomState.scale, zoomState.scale);
-            ctx.translate(-zoomCenterX, -zoomCenterY);
+
+            // 4. Volver al sistema de coordenadas del canvas, ajustando por zoom y offset de enfoque
+            ctx.translate(
+                -focusPxX + offsetX / zoomState.scale,
+                -focusPxY + offsetY / zoomState.scale
+            );
         }
 
         const backgroundImage = (shouldShowCustomImage || shouldShowUnsplashOverride) ? customImageRef.current : (shouldShowWallpaper ? wallpaperImageRef.current : null);

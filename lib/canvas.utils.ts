@@ -1,5 +1,5 @@
 import { AspectRatio } from "@/types/editor.types";
-import { ZoomStateCanvas, ZoomFragment, calculateZoomPhaseState } from "@/types/zoom.types";
+import { ZoomStateCanvas, ZoomFragment, calculateZoomPhaseState, zoomLevelToFactor, speedToTransitionMs, easeOutQuart } from "@/types/zoom.types";
 export function drawRoundedRect(
     ctx: CanvasRenderingContext2D,
     x: number,
@@ -212,6 +212,13 @@ export interface ZoomStateCanvasExport extends ZoomStateCanvas {
     perspective: number;
 }
 
+/**
+ * Calculate smooth zoom for canvas export.
+ * 
+ * IMPORTANT: Two different zoom behaviors:
+ * 1. Simple zoom (no 3D, no movement): Entry inside fragment, Exit AFTER fragment ends
+ * 2. Advanced zoom (3D or movement): 3-phase system (Entry → Hold → Exit) all within fragment
+ */
 export function calculateSmoothZoom(
     frameTime: number,
     zoomFragments: ZoomFragment[]
@@ -233,18 +240,83 @@ export function calculateSmoothZoom(
         f => frameTime >= f.startTime && frameTime <= f.endTime
     );
 
+    // Find previous fragment for exit transition (only used for simple zoom)
+    const previousFragment = sortedFragments
+        .filter(f => f.endTime < frameTime)
+        .sort((a, b) => b.endTime - a.endTime)[0];
+
+    // Helper to check if fragment uses advanced features
+    const isAdvancedZoom = (f: ZoomFragment) => f.enable3D || f.movementEnabled;
+
     if (activeFragment) {
-        // Use calculateZoomPhaseState with forExport=true for animated scale
-        const phaseState = calculateZoomPhaseState(activeFragment, frameTime, true);
-        
-        return {
-            scale: phaseState.scale,
-            focusX: phaseState.focusX,
-            focusY: phaseState.focusY,
-            rotateX: phaseState.rotateX,
-            rotateY: phaseState.rotateY,
-            perspective: phaseState.perspective,
-        };
+        // Check if this fragment uses 3D or movement
+        if (isAdvancedZoom(activeFragment)) {
+            // ADVANCED ZOOM: Use 3-phase system (entry, hold, exit all within fragment)
+            const phaseState = calculateZoomPhaseState(activeFragment, frameTime, true);
+            return {
+                scale: phaseState.scale,
+                focusX: phaseState.focusX,
+                focusY: phaseState.focusY,
+                rotateX: phaseState.rotateX,
+                rotateY: phaseState.rotateY,
+                perspective: phaseState.perspective,
+            };
+        } else {
+            // SIMPLE ZOOM: Entry transition inside fragment, no exit inside (exit happens after)
+            const transitionMs = speedToTransitionMs(activeFragment.speed);
+            const transitionSec = transitionMs / 1000;
+            const targetScale = zoomLevelToFactor(activeFragment.zoomLevel);
+            const timeIntoFragment = frameTime - activeFragment.startTime;
+
+            let scale: number;
+            if (timeIntoFragment < transitionSec) {
+                // Entry: animate from 1 to target
+                const progress = Math.min(1, timeIntoFragment / transitionSec);
+                const easedProgress = easeOutQuart(progress);
+                scale = 1 + (targetScale - 1) * easedProgress;
+            } else {
+                // Hold: maintain target scale (no exit inside fragment for simple zoom)
+                scale = targetScale;
+            }
+
+            return {
+                scale,
+                focusX: activeFragment.focusX,
+                focusY: activeFragment.focusY,
+                rotateX: 0,
+                rotateY: 0,
+                perspective: 0,
+            };
+        }
+    }
+
+    // Not inside any fragment - check exit transition from previous fragment
+    if (previousFragment) {
+        if (isAdvancedZoom(previousFragment)) {
+            // ADVANCED ZOOM: Exit already happened inside fragment, return default
+            return DEFAULT_STATE;
+        } else {
+            // SIMPLE ZOOM: Exit happens AFTER fragment ends
+            const exitTransitionMs = speedToTransitionMs(previousFragment.speed);
+            const exitTransitionSec = exitTransitionMs / 1000;
+            const timeSinceEnd = frameTime - previousFragment.endTime;
+
+            if (timeSinceEnd < exitTransitionSec) {
+                const progress = Math.min(1, timeSinceEnd / exitTransitionSec);
+                const easedProgress = easeOutQuart(progress);
+                const targetScale = zoomLevelToFactor(previousFragment.zoomLevel);
+                const scale = targetScale - (targetScale - 1) * easedProgress;
+
+                return {
+                    scale,
+                    focusX: previousFragment.focusX,
+                    focusY: previousFragment.focusY,
+                    rotateX: 0,
+                    rotateY: 0,
+                    perspective: 0,
+                };
+            }
+        }
     }
 
     return DEFAULT_STATE;
