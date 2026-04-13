@@ -202,8 +202,20 @@ export function useVideoThumbnails(
 
         try {
             await new Promise<void>((resolve, reject) => {
-                video.onloadedmetadata = () => resolve();
-                video.onerror = () => reject(new Error("Failed to load video"));
+                const timeout = setTimeout(() => {
+                    reject(new Error("Video load timeout"));
+                }, 5000); // 5 second timeout
+
+                video.onloadedmetadata = () => {
+                    clearTimeout(timeout);
+                    resolve();
+                };
+                video.onerror = () => {
+                    clearTimeout(timeout);
+                    // Check if it's a network error (video deleted/not found)
+                    const errorMessage = video.error?.message || "Failed to load video";
+                    reject(new Error(errorMessage));
+                };
                 video.load();
             });
 
@@ -252,7 +264,17 @@ export function useVideoThumbnails(
                 }
             }
         } catch (error) {
-            console.error("Error generating thumbnails:", error);
+            // Suppress expected errors: deleted/revoked blob URLs and timeouts
+            if (error instanceof Error
+                && !error.message.includes("Failed to load")
+                && !error.message.includes("timeout")
+                && !error.message.includes("Format error")
+                && !error.message.includes("MEDIA_ELEMENT_ERROR")) {
+                console.error("Error generating thumbnails:", error);
+            }
+            // Clear thumbnails on error to avoid showing stale data
+            setLowQualityThumbnails([]);
+            setHighQualityThumbnails([]);
         } finally {
             setIsGenerating(false);
             video.src = "";
@@ -268,6 +290,11 @@ export function useVideoThumbnails(
             setProgress(0);
 
             generateThumbnails();
+        } else if (!videoUrl) {
+            // Clear thumbnails when video is removed
+            setLowQualityThumbnails([]);
+            setHighQualityThumbnails([]);
+            setProgress(0);
         }
 
         return () => {
@@ -311,7 +338,7 @@ export function useVideoThumbnails(
         }
 
         const lowThumb = findNearest(lowQualityThumbnails);
-        
+
         if (highThumb && lowThumb) {
             const highDiff = Math.abs(highThumb.time - time);
             const lowDiff = Math.abs(lowThumb.time - time);

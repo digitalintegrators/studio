@@ -4,6 +4,7 @@ import { useState, useCallback, RefObject, useRef } from "react";
 import { Output, Mp4OutputFormat, BufferTarget, CanvasSource } from "mediabunny";
 import type { VideoCanvasHandle } from "@/types";
 import type { ExportQuality, ExportSettings, ExportProgress } from "@/types";
+import type { VideoTrackClip } from "@/types/video-track.types";
 import { QUALITY_SETTINGS, DEFAULT_EXPORT_FPS } from "@/lib/constants";
 import { ensureVideoReady, waitForVideoFrame, downloadBlob } from "@/lib/video.utils";
 import { FFmpeg } from "@ffmpeg/ffmpeg";
@@ -13,6 +14,19 @@ export type { ExportQuality, ExportSettings, ExportProgress };
 
 interface CancellationToken {
     cancelled: boolean;
+}
+
+// Helper: find which clip is active at a given timeline time
+function getActiveClipAtTime(clips: VideoTrackClip[], timelineTime: number): { clip: VideoTrackClip; clipTime: number } | null {
+    for (const clip of clips) {
+        const clipDuration = clip.trimEnd - clip.trimStart;
+        const clipEndTime = clip.startTime + clipDuration;
+        if (timelineTime >= clip.startTime && timelineTime < clipEndTime) {
+            const clipTime = clip.trimStart + (timelineTime - clip.startTime);
+            return { clip, clipTime };
+        }
+    }
+    return null;
 }
 
 export function useVideoExport(
@@ -499,8 +513,13 @@ async function exportWithMediabunnyAndAudio(
     const hasOriginalAudio = !settings.muteOriginalAudio;
     const needsAudioMixing = hasAudioTracks || hasOriginalAudio;
 
-    // If no audio mixing needed, use simple export
-    if (!needsAudioMixing) {
+    // Check if multi-clip export
+    const hasMultipleClips = settings.videoClips && settings.videoClips.length > 1 && settings.videoClipBlobs;
+    const clips = settings.videoClips || [];
+    const clipBlobs = settings.videoClipBlobs;
+
+    // If no audio mixing needed, use simple export (single video only)
+    if (!needsAudioMixing && !hasMultipleClips) {
         return exportWithMediabunny(
             video, canvasHandle, canvas, duration, trimStart, fps,
             bitrate, width, height, setProgress, cancellation
@@ -515,7 +534,7 @@ async function exportWithMediabunnyAndAudio(
     setProgress({
         status: "encoding",
         progress: 5,
-        message: `Preparando exportación con audio...`,
+        message: hasMultipleClips ? `Preparando exportación multi-clip...` : `Preparando exportación con audio...`,
     });
 
     const totalFrames = Math.ceil(duration * fps);
@@ -541,7 +560,32 @@ async function exportWithMediabunnyAndAudio(
     await output.start();
 
     video.pause();
-    video.currentTime = trimStart;
+    
+    // For multi-clip export, track the current active clip ID
+    let currentClipId: string | null = null;
+    
+    // Initial setup based on whether we have multiple clips
+    if (hasMultipleClips && clips.length > 0) {
+        // Sort clips by start time
+        const sortedClips = [...clips].sort((a, b) => a.startTime - b.startTime);
+        const firstClip = sortedClips[0];
+        if (firstClip && clipBlobs) {
+            const blob = clipBlobs.get(firstClip.libraryVideoId);
+            if (blob) {
+                const blobUrl = URL.createObjectURL(blob);
+                video.src = blobUrl;
+                await new Promise<void>((resolve, reject) => {
+                    video.onloadedmetadata = () => resolve();
+                    video.onerror = () => reject(new Error("Failed to load video"));
+                });
+                currentClipId = firstClip.id;
+            }
+        }
+        video.currentTime = clips[0]?.trimStart || 0;
+    } else {
+        video.currentTime = trimStart;
+    }
+    
     await waitForVideoFrame(video);
 
     for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
@@ -550,15 +594,46 @@ async function exportWithMediabunnyAndAudio(
         }
 
         const outputTime = frameIndex / fps;
+        const timelineTime = trimStart + outputTime;
+
+        // Multi-clip: determine which clip we're in and seek to correct position
+        if (hasMultipleClips && clipBlobs) {
+            const activeClipInfo = getActiveClipAtTime(clips, timelineTime);
+            
+            if (activeClipInfo) {
+                const { clip, clipTime } = activeClipInfo;
+                
+                // Check if we need to switch video source
+                if (clip.id !== currentClipId) {
+                    const newBlob = clipBlobs.get(clip.libraryVideoId);
+                    if (newBlob) {
+                        const blobUrl = URL.createObjectURL(newBlob);
+                        video.pause();
+                        video.src = blobUrl;
+                        await new Promise<void>((resolve, reject) => {
+                            video.onloadedmetadata = () => resolve();
+                            video.onerror = () => reject(new Error("Failed to load video"));
+                        });
+                        currentClipId = clip.id;
+                    }
+                }
+                
+                // Seek to correct position within the clip's video
+                video.currentTime = clipTime;
+                await waitForVideoFrame(video);
+            }
+        }
 
         // Video is already at the correct position (pre-seek or end of prev iteration)
         await canvasHandle.drawFrame();
         await videoSource.add(outputTime, frameDuration);
 
-        // Trigger next seek immediately (overlaps JS overhead)
-        const nextFrame = frameIndex + 1;
-        if (nextFrame < totalFrames) {
-            video.currentTime = Math.min(trimStart + nextFrame / fps, trimStart + duration - 0.001);
+        // For single-clip, trigger next seek immediately (overlaps JS overhead)
+        if (!hasMultipleClips) {
+            const nextFrame = frameIndex + 1;
+            if (nextFrame < totalFrames) {
+                video.currentTime = Math.min(trimStart + nextFrame / fps, trimStart + duration - 0.001);
+            }
         }
 
         if (frameIndex % 10 === 0 || frameIndex === totalFrames - 1) {
@@ -566,13 +641,18 @@ async function exportWithMediabunnyAndAudio(
             setProgress({
                 status: "encoding",
                 progress,
-                message: `Codificando video ${frameIndex + 1}/${totalFrames}...`,
+                message: hasMultipleClips 
+                    ? `Codificando clips ${frameIndex + 1}/${totalFrames}...`
+                    : `Codificando video ${frameIndex + 1}/${totalFrames}...`,
             });
         }
 
-        // Await next frame — partially decoded by now
-        if (nextFrame < totalFrames) {
-            await waitForVideoFrame(video);
+        // Await next frame — for single clip only (multi-clip handled at start of loop)
+        if (!hasMultipleClips) {
+            const nextFrame = frameIndex + 1;
+            if (nextFrame < totalFrames) {
+                await waitForVideoFrame(video);
+            }
         }
     }
 
@@ -594,6 +674,13 @@ async function exportWithMediabunnyAndAudio(
     }
 
     const videoBlob = new Blob([buffer], { type: "video/mp4" });
+
+    // If no audio mixing needed, download directly
+    if (!needsAudioMixing) {
+        downloadBlob(videoBlob, `video-export-${width}x${height}.mp4`);
+        setProgress({ status: "complete", progress: 100, message: "¡Exportación completada!" });
+        return;
+    }
 
     // Step 2: Use FFmpeg to add audio
     setProgress({
