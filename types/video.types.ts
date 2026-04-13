@@ -12,7 +12,6 @@ export interface ExportSettings {
     fps?: number;
     trim?: TrimSettings;
     transparentBackground?: boolean;
-    // Audio settings
     muteOriginalAudio?: boolean;
     audioTracks?: Array<{
         audioUrl: string;
@@ -24,9 +23,7 @@ export interface ExportSettings {
     }>;
     masterVolume?: number;
     videoBlob?: Blob;
-    // Multi-video clips (for concatenated videos)
     videoClips?: VideoTrackClip[];
-    // Video blobs map for multi-clip export (libraryVideoId -> Blob)
     videoClipBlobs?: Map<string, Blob>;
 }
 

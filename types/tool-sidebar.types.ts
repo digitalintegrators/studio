@@ -1,4 +1,4 @@
-type Tool = "screenshot" | "elements" | "audio" | "zoom" | "mockup" | "cursor";
+type Tool = "screenshot" | "elements" | "audio" | "zoom" | "mockup" | "cursor" | "videos";
 
 export interface ToolsSidebarProps {
     activeTool: Tool;

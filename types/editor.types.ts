@@ -2,7 +2,7 @@ import type { ZoomFragment } from "./zoom.types";
 import type { CanvasElement } from "./canvas-elements.types";
 import type { CursorConfig, CursorRecordingData } from "./cursor.types";
 
-export type Tool = "screenshot" | "elements" | "audio" | "zoom" | "mockup" | "cursor";
+export type Tool = "screenshot" | "elements" | "audio" | "zoom" | "mockup" | "cursor" | "videos";
 
 export type BackgroundTab = "wallpaper" | "image" | "color";
 
@@ -95,4 +95,52 @@ export interface VideoCanvasProps {
     // Cursor overlay props
     cursorConfig?: CursorConfig;
     cursorData?: CursorRecordingData;
+}
+
+export async function detectVideoHasAudio(blob: Blob): Promise<boolean> {
+    try {
+        const url = URL.createObjectURL(blob);
+
+        return new Promise<boolean>((resolve) => {
+            const audioCtx = new AudioContext();
+            const reader = new FileReader();
+
+            reader.onload = async (e) => {
+                try {
+                    const arrayBuffer = e.target?.result as ArrayBuffer;
+                    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+                    let hasSignal = false;
+                    for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) {
+                        const data = audioBuffer.getChannelData(ch);
+                        for (let i = 0; i < Math.min(data.length, 10000); i++) {
+                            if (Math.abs(data[i]) > 0.001) {
+                                hasSignal = true;
+                                break;
+                            }
+                        }
+                        if (hasSignal) break;
+                    }
+
+                    await audioCtx.close();
+                    URL.revokeObjectURL(url);
+                    resolve(hasSignal);
+                } catch {
+                    await audioCtx.close();
+                    URL.revokeObjectURL(url);
+                    resolve(false);
+                }
+            };
+
+            reader.onerror = () => {
+                audioCtx.close();
+                URL.revokeObjectURL(url);
+                resolve(false);
+            };
+
+            reader.readAsArrayBuffer(blob);
+        });
+    } catch {
+        return true; // en caso de error, asumir que tiene audio
+    }
 }
