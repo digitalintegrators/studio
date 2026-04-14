@@ -208,8 +208,8 @@ export default function RecordingSetupDialog({ open, onClose, onStart }: Props) 
                             <div
                                 className="absolute"
                                 style={{
-                                    left: `calc(${setup.camera.position.x * 100}% - ${setup.camera.size * 50}%)`,
-                                    top: `calc(${setup.camera.position.y * 100}% - ${setup.camera.size * 50}%)`,
+                                    left: `clamp(0px, calc(${setup.camera.position.x * 100}% - ${setup.camera.size * 50}%), calc(100% - ${setup.camera.size * 100}%))`,
+                                    top: `clamp(0px, calc(${setup.camera.position.y * 100}% - ${setup.camera.size * 50}%), calc(100% - ${setup.camera.size * 100}%))`,
                                     width: `${setup.camera.size * 100}%`,
                                     aspectRatio: "1 / 1",
                                 }}

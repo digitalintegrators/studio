@@ -3,6 +3,7 @@
 import { useRef, useEffect, useImperativeHandle, forwardRef, useMemo, useState, useCallback } from "react";
 import type { VideoCanvasHandle, VideoCanvasProps, VideoThumbnail } from "@/types";
 import type { ImageElement, SvgElement, CanvasElement } from "@/types/canvas-elements.types";
+import { getCameraLayout } from "@/types/camera.types";
 import { ASPECT_RATIO_DIMENSIONS } from "@/types";
 // import { interpolateCursorPosition, DEFAULT_CURSOR_CONFIG, EMPTY_CURSOR_DATA } from "@/types/cursor.types";
 // import type { CursorKeyframe } from "@/types/cursor.types";
@@ -939,14 +940,13 @@ export const VideoCanvas = forwardRef<VideoCanvasHandle, VideoCanvasProps>(funct
             }
         }
 
-        const shortSide = Math.min(canvasWidth, canvasHeight);
-        const size = cameraConfig.size * shortSide;
+        const { size, left: drawX, top: drawY } = getCameraLayout(
+            cameraConfig,
+            canvasWidth,
+            canvasHeight
+        );
         if (size <= 0) return;
-
-        const centerX = cameraConfig.position.x * canvasWidth;
-        const centerY = cameraConfig.position.y * canvasHeight;
-        const drawX = centerX - size / 2;
-        const drawY = centerY - size / 2;
+        const shortSide = Math.min(canvasWidth, canvasHeight);
 
         const radius =
             cameraConfig.shape === "circle"
@@ -1288,9 +1288,8 @@ export const VideoCanvas = forwardRef<VideoCanvasHandle, VideoCanvasProps>(funct
                                 style={{
                                     width: `${cameraConfig.size * 100}cqmin`,
                                     aspectRatio: "1 / 1",
-                                    left: `${cameraConfig.position.x * 100}%`,
-                                    top: `${cameraConfig.position.y * 100}%`,
-                                    transform: "translate(-50%, -50%)",
+                                    left: `clamp(0px, calc(${cameraConfig.position.x * 100}% - ${cameraConfig.size * 50}cqmin), calc(100% - ${cameraConfig.size * 100}cqmin))`,
+                                    top: `clamp(0px, calc(${cameraConfig.position.y * 100}% - ${cameraConfig.size * 50}cqmin), calc(100% - ${cameraConfig.size * 100}cqmin))`,
                                     transition: isDraggingCamera ? "none" : "left 120ms ease, top 120ms ease",
                                     touchAction: "none",
                                 }}

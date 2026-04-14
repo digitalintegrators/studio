@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
-import type { CameraConfig } from "@/types/camera.types";
+import { getCameraLayout, type CameraConfig } from "@/types/camera.types";
 
 interface Props {
     stream: MediaStream;
@@ -79,7 +79,11 @@ export default function FloatingCameraPreview({ stream, config, onConfigChange }
         []
     );
 
-    const size = Math.min(window.innerWidth, window.innerHeight) * config.size;
+    const { size, left, top } = getCameraLayout(
+        config,
+        typeof window !== "undefined" ? window.innerWidth : 1920,
+        typeof window !== "undefined" ? window.innerHeight : 1080
+    );
     const radius = shapeRadius(config.shape);
 
     return (
@@ -93,8 +97,8 @@ export default function FloatingCameraPreview({ stream, config, onConfigChange }
                 isDragging ? "cursor-grabbing" : "cursor-grab"
             }`}
             style={{
-                left: `calc(${config.position.x * 100}vw - ${size / 2}px)`,
-                top: `calc(${config.position.y * 100}vh - ${size / 2}px)`,
+                left: `${left}px`,
+                top: `${top}px`,
                 width: size,
                 height: size,
                 transition: isDragging ? "none" : "left 120ms ease, top 120ms ease",

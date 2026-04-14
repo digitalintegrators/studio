@@ -75,11 +75,36 @@ export const CORNER_POSITIONS: Record<
     Exclude<CameraCorner, "custom">,
     CameraPosition
 > = {
-    "top-left": { x: 0.05, y: 0.05 },
-    "top-right": { x: 0.95, y: 0.05 },
-    "bottom-left": { x: 0.05, y: 0.95 },
-    "bottom-right": { x: 0.95, y: 0.95 },
+    "top-left": { x: 0.12, y: 0.12 },
+    "top-right": { x: 0.88, y: 0.12 },
+    "bottom-left": { x: 0.12, y: 0.88 },
+    "bottom-right": { x: 0.88, y: 0.88 },
 };
+
+/**
+ * Compute the camera bubble's pixel layout inside a container, clamped so the
+ * full bubble stays inside the container regardless of position/size. Callers
+ * pass container dimensions (viewport, canvas, or preview box) and get back
+ * size + top-left pixel coords ready to apply as CSS or canvas draw coords.
+ */
+export function getCameraLayout(
+    config: CameraConfig,
+    containerWidth: number,
+    containerHeight: number
+): { size: number; left: number; top: number } {
+    const shortSide = Math.min(containerWidth, containerHeight);
+    const size = Math.min(
+        config.size * shortSide,
+        containerWidth,
+        containerHeight
+    );
+    const half = size / 2;
+    const centerX = config.position.x * containerWidth;
+    const centerY = config.position.y * containerHeight;
+    const left = Math.max(0, Math.min(containerWidth - size, centerX - half));
+    const top = Math.max(0, Math.min(containerHeight - size, centerY - half));
+    return { size, left, top };
+}
 
 export const CAMERA_SHAPES: Array<{ id: CameraShape; label: string; icon: string }> = [
     { id: "circle", label: "Círculo", icon: "solar:record-circle-bold" },
