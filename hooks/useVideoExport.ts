@@ -510,7 +510,10 @@ async function exportWithMediabunnyAndAudio(
     settings: ExportSettings
 ): Promise<void> {
     const hasAudioTracks = settings.audioTracks && settings.audioTracks.length > 0;
-    const hasOriginalAudio = !settings.muteOriginalAudio;
+    // Only consider original audio if: (1) not explicitly muted AND (2) the source video actually has an audio stream.
+    // videoHasAudioTrack defaults to true (safe fallback) if not provided.
+    const sourceHasAudioStream = settings.videoHasAudioTrack !== false;
+    const hasOriginalAudio = !settings.muteOriginalAudio && sourceHasAudioStream;
     const needsAudioMixing = hasAudioTracks || hasOriginalAudio;
 
     // Check if multi-clip export
@@ -682,194 +685,217 @@ async function exportWithMediabunnyAndAudio(
         return;
     }
 
-    // Step 2: Use FFmpeg to add audio
-    setProgress({
-        status: "finalizing",
-        progress: 60,
-        message: "Cargando motor de audio...",
-    });
+    // Pre-check: even if needsAudioMixing is true, verify we actually have usable audio sources
+    // before loading FFmpeg (which can fail with FS errors if WASM files are missing/corrupt)
+    const sourceBlob = hasOriginalAudio ? settings.videoBlob : undefined;
+    const hasUsableSourceBlob = !!(sourceBlob && sourceBlob.size > 0);
+    const hasUsableAudioTracks = !!(settings.audioTracks && settings.audioTracks.some(t => t.audioUrl));
 
-    const ffmpeg = new FFmpeg();
-    const baseURL = "/ffmpeg";
-    await ffmpeg.load({
-        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
-        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
-    });
-
-    // Write video file to FFmpeg
-    const videoData = new Uint8Array(await videoBlob.arrayBuffer());
-    await ffmpeg.writeFile("video.mp4", videoData);
-
-    // Write original video for audio extraction if needed
-    let hasSourceAudio = false;
-    if (hasOriginalAudio) {
-        const sourceBlob = settings.videoBlob;
-        if (sourceBlob && sourceBlob.size > 0) {
-            try {
-                const originalVideoData = new Uint8Array(await sourceBlob.arrayBuffer());
-                await ffmpeg.writeFile("original.mp4", originalVideoData);
-
-                // Verificar si el video tiene stream de audio
-                // Probamos extrayendo audio — si falla, no tiene audio
-                try {
-                    await ffmpeg.exec([
-                        "-i", "original.mp4",
-                        "-vn", "-t", "0.1",
-                        "-f", "null", "-"
-                    ]);
-                    hasSourceAudio = true;
-                } catch {
-                    // No tiene stream de audio
-                    hasSourceAudio = false;
-                    await ffmpeg.deleteFile("original.mp4").catch(() => { });
-                }
-            } catch (e) {
-                console.warn("Could not read video blob for audio:", e);
-                hasSourceAudio = false;
-            }
-        } else {
-            hasSourceAudio = false;
-        }
-    }
-
-    // Write audio track files
-    const audioTracks: { index: number; filename: string; track: NonNullable<typeof settings.audioTracks>[0] }[] = [];
-    if (settings.audioTracks && settings.audioTracks.length > 0) {
-        // Fetch all audio tracks in parallel, then write to FFmpeg WASM memory sequentially
-        const fetchResults = await Promise.all(
-            settings.audioTracks.map(async (track, i) => {
-                if (!track.audioUrl) return null;
-                try {
-                    const response = await fetch(track.audioUrl);
-                    const audioData = new Uint8Array(await response.arrayBuffer());
-                    return { index: i, filename: `audio${i}.mp3`, track, audioData };
-                } catch (e) {
-                    console.warn(`Could not load audio track ${i}:`, e);
-                    return null;
-                }
-            })
-        );
-        for (const result of fetchResults) {
-            if (!result) continue;
-            await ffmpeg.writeFile(result.filename, result.audioData);
-            audioTracks.push({ index: result.index, filename: result.filename, track: result.track });
-        }
-    }
-
-    setProgress({
-        status: "finalizing",
-        progress: 70,
-        message: "Mezclando audio...",
-    });
-
-    // Build FFmpeg command for audio mixing
-    const ffmpegArgs: string[] = ["-i", "video.mp4"];
-
-    // Add original audio input if available
-    if (hasSourceAudio) {
-        ffmpegArgs.push("-ss", String(trimStart), "-t", String(duration), "-i", "original.mp4");
-    }
-
-    // Add audio track inputs
-    for (const audioTrackFile of audioTracks) {
-        ffmpegArgs.push("-i", audioTrackFile.filename);
-    }
-
-    // Build filter complex for audio mixing
-    const audioInputs: string[] = [];
-    let filterComplex = "";
-    let inputIndex = 1; // Start at 1 because 0 is the video
-
-    // Add original audio to mix
-    if (hasSourceAudio) {
-        const volume = settings.masterVolume ?? 1;
-        filterComplex += `[${inputIndex}:a]volume=${volume}[a${inputIndex}];`;
-        audioInputs.push(`[a${inputIndex}]`);
-        inputIndex++;
-    }
-
-    // Add audio tracks to mix
-  for (const audioTrackFile of audioTracks) {
-    const { track } = audioTrackFile;
-    const trackVolume = track.volume * (settings.masterVolume ?? 1);
-    const delayMs = Math.round(track.startTime * 1000);
-    const audioTrimStart = track.trimStart ?? 0;          // ← nuevo
-    const audioTrimEnd = audioTrimStart + track.duration; // ← nuevo
-
-    filterComplex += `[${inputIndex}:a]atrim=${audioTrimStart}:${audioTrimEnd},asetpts=PTS-STARTPTS,adelay=${delayMs}|${delayMs},volume=${trackVolume}[a${inputIndex}];`;
-    audioInputs.push(`[a${inputIndex}]`);
-    inputIndex++;
-}
-
-    // Mix all audio streams
-    const totalAudioInputs = (hasSourceAudio ? 1 : 0) + audioTracks.length;
-
-    if (totalAudioInputs === 0) {
-        // Sin ningún audio — descargar directamente el video sin pasar por FFmpeg
+    if (!hasUsableSourceBlob && !hasUsableAudioTracks) {
+        // No actual audio data to mix — download video directly without loading FFmpeg
         downloadBlob(videoBlob, `video-export-${width}x${height}.mp4`);
         setProgress({ status: "complete", progress: 100, message: "¡Exportación completada!" });
         return;
-    } else if (audioInputs.length > 0) {
-        filterComplex += `${audioInputs.join("")}amix=inputs=${audioInputs.length}:duration=longest:dropout_transition=0:normalize=0[aout]`;
-        ffmpegArgs.push("-filter_complex", filterComplex);
-        ffmpegArgs.push("-map", "0:v", "-map", "[aout]");
-        ffmpegArgs.push("-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "output.mp4");
-    } else {
-        ffmpegArgs.push("-c:v", "copy", "-an", "output.mp4");
     }
 
-    // Track FFmpeg progress
-    ffmpeg.on("progress", ({ progress }) => {
-        if (progress > 0) {
-            const mixProgress = 70 + Math.round(progress * 25);
-            setProgress({
-                status: "finalizing",
-                progress: Math.min(mixProgress, 95),
-                message: `Procesando audio... ${Math.round(progress * 100)}%`,
-            });
-        }
-    });
-
+    // Step 2: Use FFmpeg to add audio — wrapped in try-catch to fall back on any FS/WASM error
     try {
-        await ffmpeg.exec(ffmpegArgs);
-    } catch (e) {
-        console.error("FFmpeg audio mixing failed:", e);
-        // Fallback: export video without audio mixing
+        setProgress({
+            status: "finalizing",
+            progress: 60,
+            message: "Cargando motor de audio...",
+        });
+
+        const ffmpeg = new FFmpeg();
+        const baseURL = "/ffmpeg";
+        await ffmpeg.load({
+            coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
+            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
+        });
+
+        // Write video file to FFmpeg
+        const videoData = new Uint8Array(await videoBlob.arrayBuffer());
+        await ffmpeg.writeFile("video.mp4", videoData);
+
+        // Write original video for audio extraction if needed
+        let hasSourceAudio = false;
+        if (hasOriginalAudio) {
+            if (hasUsableSourceBlob) {
+                try {
+                    const originalVideoData = new Uint8Array(await sourceBlob!.arrayBuffer());
+                    await ffmpeg.writeFile("original.mp4", originalVideoData);
+
+                    // Verificar si el video tiene stream de audio
+                    // Probamos extrayendo audio — si falla, no tiene audio
+                    try {
+                        await ffmpeg.exec([
+                            "-i", "original.mp4",
+                            "-vn", "-t", "0.1",
+                            "-f", "null", "-"
+                        ]);
+                        hasSourceAudio = true;
+                    } catch {
+                        // No tiene stream de audio
+                        hasSourceAudio = false;
+                        await ffmpeg.deleteFile("original.mp4").catch(() => { });
+                    }
+                } catch (e) {
+                    console.warn("Could not read video blob for audio:", e);
+                    hasSourceAudio = false;
+                }
+            } else {
+                hasSourceAudio = false;
+            }
+        }
+
+        // Write audio track files
+        const audioTracks: { index: number; filename: string; track: NonNullable<typeof settings.audioTracks>[0] }[] = [];
+        if (settings.audioTracks && settings.audioTracks.length > 0) {
+            // Fetch all audio tracks in parallel, then write to FFmpeg WASM memory sequentially
+            const fetchResults = await Promise.all(
+                settings.audioTracks.map(async (track, i) => {
+                    if (!track.audioUrl) return null;
+                    try {
+                        const response = await fetch(track.audioUrl);
+                        const audioData = new Uint8Array(await response.arrayBuffer());
+                        return { index: i, filename: `audio${i}.mp3`, track, audioData };
+                    } catch (e) {
+                        console.warn(`Could not load audio track ${i}:`, e);
+                        return null;
+                    }
+                })
+            );
+            for (const result of fetchResults) {
+                if (!result) continue;
+                await ffmpeg.writeFile(result.filename, result.audioData);
+                audioTracks.push({ index: result.index, filename: result.filename, track: result.track });
+            }
+        }
+
+        setProgress({
+            status: "finalizing",
+            progress: 70,
+            message: "Mezclando audio...",
+        });
+
+        // Build FFmpeg command for audio mixing
+        const ffmpegArgs: string[] = ["-i", "video.mp4"];
+
+        // Add original audio input if available
+        if (hasSourceAudio) {
+            ffmpegArgs.push("-ss", String(trimStart), "-t", String(duration), "-i", "original.mp4");
+        }
+
+        // Add audio track inputs
+        for (const audioTrackFile of audioTracks) {
+            ffmpegArgs.push("-i", audioTrackFile.filename);
+        }
+
+        // Build filter complex for audio mixing
+        const audioInputs: string[] = [];
+        let filterComplex = "";
+        let inputIndex = 1; // Start at 1 because 0 is the video
+
+        // Add original audio to mix
+        if (hasSourceAudio) {
+            const volume = settings.masterVolume ?? 1;
+            filterComplex += `[${inputIndex}:a]volume=${volume}[a${inputIndex}];`;
+            audioInputs.push(`[a${inputIndex}]`);
+            inputIndex++;
+        }
+
+        // Add audio tracks to mix
+        for (const audioTrackFile of audioTracks) {
+            const { track } = audioTrackFile;
+            const trackVolume = track.volume * (settings.masterVolume ?? 1);
+            const delayMs = Math.round(track.startTime * 1000);
+            const audioTrimStart = track.trimStart ?? 0;
+            const audioTrimEnd = audioTrimStart + track.duration;
+
+            filterComplex += `[${inputIndex}:a]atrim=${audioTrimStart}:${audioTrimEnd},asetpts=PTS-STARTPTS,adelay=${delayMs}|${delayMs},volume=${trackVolume}[a${inputIndex}];`;
+            audioInputs.push(`[a${inputIndex}]`);
+            inputIndex++;
+        }
+
+        // Mix all audio streams
+        const totalAudioInputs = (hasSourceAudio ? 1 : 0) + audioTracks.length;
+
+        if (totalAudioInputs === 0) {
+            // No usable audio after processing — download video directly
+            downloadBlob(videoBlob, `video-export-${width}x${height}.mp4`);
+            setProgress({ status: "complete", progress: 100, message: "¡Exportación completada!" });
+            return;
+        } else if (audioInputs.length > 0) {
+            filterComplex += `${audioInputs.join("")}amix=inputs=${audioInputs.length}:duration=longest:dropout_transition=0:normalize=0[aout]`;
+            ffmpegArgs.push("-filter_complex", filterComplex);
+            ffmpegArgs.push("-map", "0:v", "-map", "[aout]");
+            ffmpegArgs.push("-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "output.mp4");
+        } else {
+            ffmpegArgs.push("-c:v", "copy", "-an", "output.mp4");
+        }
+
+        // Track FFmpeg progress
+        ffmpeg.on("progress", ({ progress }) => {
+            if (progress > 0) {
+                const mixProgress = 70 + Math.round(progress * 25);
+                setProgress({
+                    status: "finalizing",
+                    progress: Math.min(mixProgress, 95),
+                    message: `Procesando audio... ${Math.round(progress * 100)}%`,
+                });
+            }
+        });
+
+        try {
+            await ffmpeg.exec(ffmpegArgs);
+        } catch (e) {
+            console.error("FFmpeg audio mixing failed:", e);
+            // Fallback: export video without audio mixing
+            downloadBlob(videoBlob, `video-export-${width}x${height}.mp4`);
+            setProgress({
+                status: "complete",
+                progress: 100,
+                message: "¡Exportación completada (sin mezcla de audio)!",
+            });
+            return;
+        }
+
+        setProgress({
+            status: "finalizing",
+            progress: 96,
+            message: "Preparando descarga...",
+        });
+
+        const outputData = (await ffmpeg.readFile("output.mp4")) as Uint8Array;
+        const outputBlob = new Blob([new Uint8Array(outputData)], { type: "video/mp4" });
+
+        // Cleanup
+        try {
+            await ffmpeg.deleteFile("video.mp4");
+            await ffmpeg.deleteFile("output.mp4");
+            if (hasSourceAudio) await ffmpeg.deleteFile("original.mp4");
+            for (const audioTrackFile of audioTracks) {
+                await ffmpeg.deleteFile(audioTrackFile.filename);
+            }
+        } catch { /* ignore cleanup errors */ }
+
+        downloadBlob(outputBlob, `video-export-${width}x${height}.mp4`);
+
+        setProgress({
+            status: "complete",
+            progress: 100,
+            message: "¡Exportación con audio completada!",
+        });
+    } catch (ffmpegError) {
+        // Catch-all for any FFmpeg/WASM/FS error — fall back to video-only download
+        console.warn("FFmpeg audio processing failed, exporting video only:", ffmpegError);
         downloadBlob(videoBlob, `video-export-${width}x${height}.mp4`);
         setProgress({
             status: "complete",
             progress: 100,
-            message: "¡Exportación completada (sin mezcla de audio)!",
+            message: "¡Exportación completada (sin audio)!",
         });
-        return;
     }
-
-    setProgress({
-        status: "finalizing",
-        progress: 96,
-        message: "Preparando descarga...",
-    });
-
-    const outputData = (await ffmpeg.readFile("output.mp4")) as Uint8Array;
-    const outputBlob = new Blob([new Uint8Array(outputData)], { type: "video/mp4" });
-
-    // Cleanup
-    try {
-        await ffmpeg.deleteFile("video.mp4");
-        await ffmpeg.deleteFile("output.mp4");
-        if (hasSourceAudio) await ffmpeg.deleteFile("original.mp4");
-        for (const audioTrackFile of audioTracks) {
-            await ffmpeg.deleteFile(audioTrackFile.filename);
-        }
-    } catch { /* ignore cleanup errors */ }
-
-    downloadBlob(outputBlob, `video-export-${width}x${height}.mp4`);
-
-    setProgress({
-        status: "complete",
-        progress: 100,
-        message: "¡Exportación con audio completada!",
-    });
 }
 
 async function blobToUint8Array(blob: Blob): Promise<Uint8Array> {

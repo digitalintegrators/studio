@@ -158,6 +158,8 @@ export default function Editor() {
     const [muteOriginalAudio, setMuteOriginalAudio] = useState<boolean>(false);
     const [masterVolume, setMasterVolume] = useState<number>(1);
     const [selectedAudioTrackId, setSelectedAudioTrackId] = useState<string | null>(null);
+    // Whether the currently loaded source video file contains an audio stream
+    const [videoHasAudioTrack, setVideoHasAudioTrack] = useState<boolean>(true);
 
     const [isRecordedVideo, setIsRecordedVideo] = useState<boolean>(false);
 
@@ -759,6 +761,7 @@ export default function Editor() {
             transparentBackground: selectedWallpaper === -1,
             trim: trimRange.end > trimRange.start ? { start: trimRange.start, end: trimRange.end } : undefined,
             muteOriginalAudio,
+            videoHasAudioTrack: videoHasAudioTrack,
             audioTracks: audioTracks.map(track => {
                 const audio = uploadedAudios.find(a => a.id === track.audioId);
                 return {
@@ -811,6 +814,8 @@ export default function Editor() {
         activeClipDataRef.current = null;
         setVideoBlob(file);
         detectVideoHasAudio(file).then(hasAudio => {
+            setVideoHasAudioTrack(hasAudio);
+            if (!hasAudio) setMuteOriginalAudio(true);
             if (libraryVideo) {
                 clipAudioStateRef.current.set(libraryVideo.id, hasAudio);
             }
@@ -1164,7 +1169,11 @@ export default function Editor() {
 
                                 videoBlobsRef.current.set(libraryVideo.id, videoBlob);
                                 videoUrlsRef.current.set(libraryVideo.id, videoToLoad.url);
-                                clipAudioStateRef.current.set(libraryVideo.id, libraryVideo.hasAudio !== false);
+                                // Cache per-clip audio state + update global videoHasAudioTrack state
+                                const hasAudio = libraryVideo.hasAudio !== false;
+                                clipAudioStateRef.current.set(libraryVideo.id, hasAudio);
+                                setVideoHasAudioTrack(hasAudio);
+                                if (!hasAudio) setMuteOriginalAudio(true);
 
                                 const newClip: VideoTrackClip = {
                                     id: crypto.randomUUID(),
