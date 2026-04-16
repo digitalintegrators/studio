@@ -180,12 +180,22 @@ export function ToolsSidebar({
                         label="Fondo"
                         isActive={activeTool === "screenshot"}
                         onClick={() => onToolChange("screenshot")}
+                        popover={{
+                            title: "Fondos y Lienzo",
+                            description: "Añade gradientes, colores o imágenes",
+                            videoSrc: "/videos/preview-background.mp4"
+                        }}
                     />
                     <SidebarTool
                         icon="hugeicons:ai-browser"
                         label="Mockup"
                         isActive={activeTool === "mockup"}
                         onClick={() => onToolChange("mockup")}
+                        popover={{
+                            title: "Generador de Mockups",
+                            description: "Envuelve tus capturas en navegadores, dispositivos móviles o IDEs",
+                            videoSrc: "/videos/preview-mockup.mp4"
+                        }}
                     />
                     <SidebarTool
                         icon="solar:video-library-outline"
@@ -194,12 +204,22 @@ export function ToolsSidebar({
                         onClick={() => onToolChange("videos")}
                         ref={videosToolRef}
                         badgeCount={activeTool !== "videos" ? newVideosCount : undefined}
+                        popover={{
+                            title: "Importar Videos",
+                            description: "Sube tus grabaciones de pantalla o clips",
+                            videoSrc: "/videos/preview-videos.mp4"
+                        }}
                     />
                     <SidebarTool
                         label="Elementos"
                         isActive={activeTool === "elements"}
                         onClick={() => onToolChange("elements")}
                         ref={elementsToolRef}
+                        popover={{
+                            title: "Elementos y Anotaciones",
+                            description: "Añade flechas, formas geométricas, texto o resaltadores",
+                            videoSrc: "/videos/preview-elements.mp4"
+                        }}
                         icon={
                             <svg
                                 width="24"
@@ -225,6 +245,11 @@ export function ToolsSidebar({
                         isActive={activeTool === "audio"}
                         onClick={() => onToolChange("audio")}
                         ref={audioToolRef}
+                        // popover={{
+                        //     title: "Pistas y Efectos",
+                        //     description: "Sincroniza pistas de música de fondo o efectos de sonido (clics, notificaciones) para darle vida a tus videos.",
+                        //     videoSrc: "/videos/demo-audio.mp4"
+                        // }}
                     />
                     <SidebarTool
                         icon="iconamoon:zoom-in-bold"
@@ -232,6 +257,11 @@ export function ToolsSidebar({
                         isActive={activeTool === "zoom"}
                         onClick={() => onToolChange("zoom")}
                         ref={zoomToolRef}
+                        // popover={{
+                        //     title: "Zoom Dinámico",
+                        //     description: "Crea acercamientos fluidos hacia partes específicas de la pantalla para guiar la atención del espectador.",
+                        //     videoSrc: "/videos/demo-zoom.mp4"
+                        // }}
                     />
                     <SidebarTool
                         icon="solar:videocamera-record-bold-duotone"
@@ -239,6 +269,11 @@ export function ToolsSidebar({
                         isActive={activeTool === "camera"}
                         onClick={() => onToolChange("camera")}
                         ref={cameraToolRef}
+                        // popover={{
+                        //     title: "Cámara en pantalla",
+                        //     description: "Superpón la grabación de tu webcam con recortes circulares, marcos elegantes y fondos eliminados por IA.",
+                        //     videoSrc: "/videos/demo-camara.mp4"
+                        // }}
                     />
                     <SidebarTool
                         icon="solar:cursor-bold-duotone"
@@ -247,6 +282,11 @@ export function ToolsSidebar({
                         onClick={() => onToolChange("cursor")}
                         badge={!isCursorEnabled ? "Pronto" : undefined}
                         disabled={!isCursorEnabled}
+                        // popover={!isCursorEnabled ? undefined : {
+                        //     title: "Cursores Inteligentes",
+                        //     description: "Suaviza el movimiento del ratón y añade efectos de clic estilo macOS para tutoriales más limpios.",
+                        //     videoSrc: "/videos/demo-cursor.mp4"
+                        // }}
                     />
 
                     <div className="shrink-0 h-12" aria-hidden="true" />

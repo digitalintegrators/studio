@@ -491,18 +491,17 @@ export function ElementsMenu({
                         </div>
                         <div className="grid grid-cols-6 gap-1.5">
                             {PINNED_IMAGE_ITEMS.map((item) => (
-                                <TooltipAction label={item.name} key={item.id}>
-                                    <button
-                                        onClick={() => handleAddImage(item)}
-                                        className="aspect-square bg-white/3 hover:bg-white/8 border border-white/[0.07] hover:border-white/20 squircle-element flex items-center justify-center transition-all active:scale-90 overflow-hidden group"
-                                    >
-                                        <ProgressiveImg
-                                            src={getImagePreviewPath(item)}
-                                            alt={item.name}
-                                            className="w-full h-full object-cover group-hover:scale-110"
-                                        />
-                                    </button>
-                                </TooltipAction>
+                                <button
+                                    key={item.id}
+                                    onClick={() => handleAddImage(item)}
+                                    className="aspect-square bg-white/3 hover:bg-white/8 border border-white/[0.07] hover:border-white/20 squircle-element flex items-center justify-center transition-all active:scale-90 overflow-hidden group"
+                                >
+                                    <ProgressiveImg
+                                        src={getImagePreviewPath(item)}
+                                        alt={item.name}
+                                        className="w-full h-full object-cover group-hover:scale-110"
+                                    />
+                                </button>
                             ))}
 
                             {Array.from({ length: Math.max(0, 11 - PINNED_IMAGE_ITEMS.length) }).map((_, i) => (
