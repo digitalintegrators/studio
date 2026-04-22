@@ -10,13 +10,14 @@ import { useTranslations } from "next-intl";
 import { Icon } from "@iconify/react";
 import { Button } from "@/components/ui/button";
 import { useRecording } from "@/hooks/RecordingContext";
-import RecordingSetupDialog from "../ui/RecordingSetupDialog"; 
+import RecordingSetupDialog from "../ui/RecordingSetupDialog";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import GitHubStars from "@/components/ui/GitHubStars";
 
 export default function Header() {
   const t = useTranslations('header');
   const tRecording = useTranslations('recording.steps');
-  
+
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
@@ -45,9 +46,9 @@ export default function Header() {
       return;
     }
 
-    const isMobile = typeof window !== "undefined" && 
+    const isMobile = typeof window !== "undefined" &&
       (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768);
-    
+
     if (isMobile) {
       setShowMobileAlert(true);
       setTimeout(() => setShowMobileAlert(false), 5000);
@@ -81,13 +82,12 @@ export default function Header() {
 
           <div className="hidden md:flex items-center gap-8 text-md font-medium text-neutral-400">
             <a href="#docs" className="hover:text-white transition-colors">{t('docs')}</a>
-            <a href="https://github.com/CristianOlivera1/openvid" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">{t('github')}</a>
             <Link href="/donate" target="_blank" className="hover:text-white transition-colors">{t('donate')}</Link>
           </div>
 
           <div className="flex items-center gap-3 sm:gap-6">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={handleHeaderAction}
               disabled={isCountdown || isProcessing}
               className={cn(
@@ -112,6 +112,7 @@ export default function Header() {
               ) : (
                 <LanguageSwitcher />
               )}
+
               <div className="block">
                 {!isMounted ? (
                   <div className="flex items-center gap-2 px-2 py-1">
@@ -129,6 +130,7 @@ export default function Header() {
                 <MobileMenu />
               )}
             </div>
+
           </div>
         </div>
 
@@ -143,10 +145,10 @@ export default function Header() {
         )}
       </header>
 
-      <RecordingSetupDialog 
-        open={setupDialogOpen} 
-        onClose={() => setSetupDialogOpen(false)} 
-        onStart={(config) => startCountdown(config)} 
+      <RecordingSetupDialog
+        open={setupDialogOpen}
+        onClose={() => setSetupDialogOpen(false)}
+        onStart={(config) => startCountdown(config)}
       />
     </>
   );

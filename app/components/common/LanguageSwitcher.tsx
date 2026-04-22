@@ -34,7 +34,7 @@ export function LanguageSwitcher() {
   return (
     <DropdownMenu.Root open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenu.Trigger asChild>
-        <Button variant="outline"
+        <Button variant="outline" className='text-xs'
           disabled={isPending}
         >
           <Icon icon={currentLanguage.icon} width="18" height="18" />

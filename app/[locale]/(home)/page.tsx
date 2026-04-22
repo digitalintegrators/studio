@@ -41,7 +41,7 @@ export default function Home() {
           <div className="w-full sm:max-w-6xl mx-auto sm:px-6 mb-14">
             <EditorPreview />
           </div>
-          {/* <BentoDemos /> */}
+          <BentoDemos />
         </section>
       </div>
     </div>

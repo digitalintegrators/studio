@@ -6,6 +6,7 @@ import { saveUploadedVideo } from "@/lib/video-upload-cache";
 import { saveUploadedImage } from "@/lib/image-upload-cache";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
+import GitHubBadge from "@/components/ui/GitHubStars";
 
 interface HeroProps {
     onVideoUpload?: (file: File) => void;
@@ -116,11 +117,20 @@ export default function Hero({ onVideoUpload, onPhotoUpload }: HeroProps) {
     return (
         <>
             <h1 className="animate-reveal text-5xl md:text-7xl font-semibold text-white tracking-tight mb-6 leading-[1.1] drop-shadow-[1.2px_1.2px_100.2px_rgba(183,203,248,1)]">
+                <div
+                    className={`absolute h-auto shadow-2xl transition-all ${locale === "es"
+                            ? "-top-16 sm:-top-4 lg:top-0 xl:top-3 left-14 -rotate-14"
+                            : "left-16 -top-16 sm:top-0 xl:top-3 sm:-left-6 -rotate-14"
+                        }`}
+                >
+                    <GitHubBadge />
+                </div>
+
                 <img
                     src="/svg/version.svg"
                     alt="Version"
                     aria-hidden="true"
-                    className={`absolute h-auto shadow-2xl transition-all ${locale === 'es' ? "-top-8 sm:-top-4 lg:top-0 xl:top-4 left-0 -rotate-10 sm:left-26" : "-top-8 sm:top-0 xl:top-4 sm:left-10 -rotate-10" } w-16 sm:w-18`}
+                    className={`absolute h-auto shadow-2xl transition-all ${locale === 'es' ? "-top-8 sm:-top-4 lg:top-0 xl:top-2 left-0 -rotate-10 sm:left-30" : "-top-8 sm:top-0 xl:top-2 sm:left-10 -rotate-10"} w-16 sm:w-18`}
                 />
                 {t.rich("title", {
                     screen: (chunks) => (

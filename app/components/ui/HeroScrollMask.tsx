@@ -29,8 +29,8 @@ export function HeroScrollMask() {
   const t = useTranslations('demo');
   const pinContainerRef = useRef<HTMLDivElement>(null);
   const brandRef = useRef<HTMLSpanElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-
+  const videoRef = useRef<HTMLVideoElement>(null); // <- Vuelve a ser HTMLVideoElement
+  const containerRef = useRef<HTMLDivElement>(null);
   const textContainerRef = useRef<HTMLDivElement>(null);
 
   const [featureIndex, setFeatureIndex] = useState(0);
@@ -52,7 +52,15 @@ export function HeroScrollMask() {
       const conditions = context.conditions as { isMobile: boolean; isDesktop: boolean } | undefined;
       const isMobile = !!conditions?.isMobile;
       const timeline = gsap.timeline({ defaults: { ease: "none" } });
+      timeline.set(containerRef.current, { visibility: "visible" }, 2.5);
 
+      // 2. Animamos la opacidad del video (como lo tenías originalmente)
+      timeline.fromTo(
+        videoRef.current,
+        { opacity: 0, scale: 1.1 },
+        { opacity: 1, duration: 0.2, scale: 1.1, ease: "power3.inOut" },
+        2.5
+      );
       timeline.to(
         ".floating-image",
         {
@@ -157,7 +165,7 @@ export function HeroScrollMask() {
 
           <div
             ref={textContainerRef}
-            className="absolute top-2 right-2 sm:top-6 sm:right-6 md:top-22 md:right-8 z-40 pointer-events-none select-none opacity-0"
+            className="absolute top-2 right-2 sm:top-2 sm:right-6 md:top-14 md:right-8 z-40 pointer-events-none select-none opacity-0"
           >
             <div className="bg-black/40 backdrop-blur-xl border border-white/20 rounded-xl md:rounded-2xl px-1 py-1 md:px-6 md:py-4 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col items-end min-w-45 sm:min-w-65 md:min-w-[320px]">
               <div className="h-2 md:h-6 w-full flex items-center justify-end overflow-hidden px-1">
@@ -200,18 +208,22 @@ export function HeroScrollMask() {
                 <path d="M503.501 20.1523C500.655 10.8349 505.164 2.46105 513.757 0.411426C522.202 -1.60279 528.731 3.9868 528.028 12.6294C527.577 18.1794 523.214 23.1626 517.215 24.9798C511.545 26.6973 507.717 25.4373 503.501 20.1523Z" />
               </svg>
             </span>
-            <div className="absolute inset-0 w-full h-full z-10 overflow-hidden flex flex-col justify-center">
-              <div className="absolute inset-0 z-20 bg-linear-to-b from-transparent from-90% to-[#0C0C0D] pointer-events-none" />
+            <div
+              ref={containerRef}
+              className="absolute inset-0 w-full h-full z-10 overflow-hidden flex flex-col justify-center items-center bg-black invisible"
+            >
               <video
                 ref={videoRef}
                 autoPlay
                 loop
                 muted
                 playsInline
-                className="w-full h-auto max-h-full object-contain"
+                className="w-full max-w-370 h-auto max-h-full object-contain"
               >
-                <source src="/images/pages/demo.mp4" type="video/mp4" />
+                <source src="/images/pages/demo-scroll.mp4" type="video/mp4" />
               </video>
+
+              <div className="absolute bottom-0 left-0 right-0 h-40 z-20 bg-linear-to-t from-[#0B0B0B] via-[#0B0B0B]/80 to-transparent pointer-events-none" />
             </div>
 
           </h2>
