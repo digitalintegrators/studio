@@ -14,8 +14,6 @@ export interface ExportSettings {
     trim?: TrimSettings;
     transparentBackground?: boolean;
     muteOriginalAudio?: boolean;
-    /** Whether the source video file actually contains an audio stream.
-     * When false, FFmpeg audio mixing is skipped entirely even if muteOriginalAudio is false. */
     videoHasAudioTrack?: boolean;
     audioTracks?: Array<{
         audioUrl: string;

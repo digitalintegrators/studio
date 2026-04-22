@@ -1,9 +1,5 @@
 import { TIMELINE_ZOOM_SCALE } from './constants';
 
-/**
- * Espera a que un frame de video esté realmente disponible para captura
- * Usa requestVideoFrameCallback si está disponible (Chrome/Edge)
- */
 export function waitForVideoFrame(video: HTMLVideoElement): Promise<void> {
     return new Promise((resolve) => {
         let resolved = false;
@@ -48,7 +44,7 @@ export async function ensureVideoReady(video: HTMLVideoElement): Promise<void> {
                 resolve();
             };
             video.addEventListener('canplay', onReady, { once: true });
-            setTimeout(resolve, 3000); // Timeout máximo
+            setTimeout(resolve, 3000);
         });
     }
     
@@ -60,11 +56,7 @@ export async function ensureVideoReady(video: HTMLVideoElement): Promise<void> {
     await new Promise<void>(resolve => setTimeout(resolve, 100));
 }
 
-/**
- * Formatea segundos a MM:SS
- */
 export function formatTime(time: number): string {
-    // Validar que el tiempo sea un número válido
     if (isNaN(time) || !isFinite(time) || time < 0) {
         return '00:00';
     }
@@ -73,9 +65,6 @@ export function formatTime(time: number): string {
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 }
 
-/**
- * Descarga un Blob como archivo
- */
 export function downloadBlob(blob: Blob, filename: string): void {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -87,11 +76,6 @@ export function downloadBlob(blob: Blob, filename: string): void {
     URL.revokeObjectURL(url);
 }
 
-/**
- * Calcula el multiplicador de zoom para el timeline
- * @param zoom - Nivel de zoom (1-10)
- * @returns Multiplicador de ancho del timeline
- */
 export function getZoomMultiplier(zoom: number): number {
     const rounded = Math.round(Math.max(1, Math.min(10, zoom)));
     return TIMELINE_ZOOM_SCALE[rounded] ?? 1;

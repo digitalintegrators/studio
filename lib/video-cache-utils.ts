@@ -1,12 +1,5 @@
-/**
- * Utility functions to check for any cached video (recorded or uploaded)
- */
-
 import { getUploadedVideo } from "./video-upload-cache";
 
-/**
- * Check if a recorded video exists in IndexedDB
- */
 async function hasRecordedVideo(): Promise<boolean> {
     try {
         const dbName = "openvidDB";
@@ -49,16 +42,11 @@ async function hasRecordedVideo(): Promise<boolean> {
     }
 }
 
-/**
- * Check if any video exists (recorded OR uploaded)
- */
 export async function hasAnyVideo(): Promise<boolean> {
     try {
-        // Check uploaded videos first (faster)
         const uploadedVideo = await getUploadedVideo();
         if (uploadedVideo) return true;
 
-        // If no uploaded video, check recorded video
         return await hasRecordedVideo();
     } catch (error) {
         console.error("Error checking for any video:", error);

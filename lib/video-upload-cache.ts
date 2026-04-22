@@ -17,9 +17,6 @@ export interface CachedUploadedVideo {
 
 let dbInstance: IDBDatabase | null = null;
 
-/**
- * Open IndexedDB connection
- */
 async function openDB(): Promise<IDBDatabase> {
     if (dbInstance) return dbInstance;
 
@@ -42,18 +39,11 @@ async function openDB(): Promise<IDBDatabase> {
     });
 }
 
-/**
- * Calculate aspect ratio from dimensions
- * Always returns "auto" to use the actual video dimensions
- */
+
 function calculateAspectRatio(_width: number, _height: number): string {
-    // Always return "auto" so videos use their actual dimensions
     return "auto";
 }
 
-/**
- * Get video metadata from file
- */
 async function getVideoMetadata(file: File): Promise<{
     duration: number;
     width: number;
@@ -72,7 +62,6 @@ async function getVideoMetadata(file: File): Promise<{
                 aspectRatio: calculateAspectRatio(video.videoWidth, video.videoHeight),
             };
             
-            // Cleanup
             URL.revokeObjectURL(video.src);
             resolve(metadata);
         };
@@ -86,14 +75,10 @@ async function getVideoMetadata(file: File): Promise<{
     });
 }
 
-/**
- * Save uploaded video (replaces any existing video)
- */
 export async function saveUploadedVideo(file: File): Promise<CachedUploadedVideo> {
     try {
         const db = await openDB();
         
-        // Get video metadata
         const metadata = await getVideoMetadata(file);
         
         const data: CachedUploadedVideo = {
@@ -112,7 +97,6 @@ export async function saveUploadedVideo(file: File): Promise<CachedUploadedVideo
             const transaction = db.transaction(STORE_NAME, "readwrite");
             const store = transaction.objectStore(STORE_NAME);
             
-            // Put will replace any existing video with the same key
             const request = store.put(data);
 
             request.onerror = () => reject(request.error);
@@ -124,9 +108,6 @@ export async function saveUploadedVideo(file: File): Promise<CachedUploadedVideo
     }
 }
 
-/**
- * Get the current uploaded video
- */
 export async function getUploadedVideo(): Promise<CachedUploadedVideo | null> {
     try {
         const db = await openDB();
@@ -148,9 +129,6 @@ export async function getUploadedVideo(): Promise<CachedUploadedVideo | null> {
     }
 }
 
-/**
- * Delete the uploaded video
- */
 export async function deleteUploadedVideo(): Promise<void> {
     try {
         const db = await openDB();
@@ -168,17 +146,11 @@ export async function deleteUploadedVideo(): Promise<void> {
     }
 }
 
-/**
- * Check if an uploaded video exists
- */
 export async function hasUploadedVideo(): Promise<boolean> {
     const video = await getUploadedVideo();
     return video !== null;
 }
 
-/**
- * Get uploaded video info without loading the blob
- */
 export async function getUploadedVideoInfo(): Promise<{
     fileName: string;
     fileSize: number;

@@ -10,7 +10,7 @@ interface UploadedVideoData {
     fileName: string;
     width: number;
     height: number;
-    timestamp: number; // uploadedAt timestamp for comparison
+    timestamp: number;
 }
 
 interface UseVideoUploadReturn {
