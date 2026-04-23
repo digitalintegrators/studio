@@ -20,30 +20,23 @@ export interface EditorState {
     shadows: number;
     selectedImageUrl: string;
     backgroundColorConfig: BackgroundColorConfig | null;
-    
     aspectRatio: AspectRatio;
     customDimensions: { width: number; height: number } | null;
     cropArea: CropArea | undefined;
     trimRange: TrimRange;
-    
     zoomFragments: ZoomFragment[];
-    
     mockupId: string;
     mockupConfig: MockupConfig;
-    
     canvasElements: CanvasElement[];
-    
     audioTracks: AudioTrack[];
     muteOriginalAudio: boolean;
     masterVolume: number;
-
     cameraConfig: CameraConfig | null;
-    
-    // Photo mode specific states
     videoTransform: VideoTransform;
     imageTransform: Preview3DConfig;
     apply3DToBackground: boolean;
     imageMaskConfig: ImageMaskConfig;
+    videoMaskConfig: ImageMaskConfig;
 }
 
 export function createInitialEditorState(overrides?: Partial<EditorState>): EditorState {
@@ -92,6 +85,9 @@ export function createInitialEditorState(overrides?: Partial<EditorState>): Edit
         },
         apply3DToBackground: false,
         imageMaskConfig: {
+            enabled: false,
+        },
+        videoMaskConfig: {
             enabled: false,
         },
         ...overrides,

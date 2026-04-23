@@ -1,4 +1,5 @@
 import type { AspectRatio } from "./editor.types";
+import type { ImageMaskConfig } from "./photo.types";
 
 export interface PlayerControlsProps {
     isPlaying: boolean;
@@ -16,6 +17,9 @@ export interface PlayerControlsProps {
     onCustomAspectRatioChange?: (dimensions: { width: number; height: number }) => void;
     onOpenCropper: () => void;
     onZoomChange: (zoom: number) => void;
+    videoMaskConfig: ImageMaskConfig;
+    onVideoMaskConfigChange: (config: ImageMaskConfig) => void;
+    videoPreviewImageUrl?: string | null;
 }
 
 export const MIN_ZOOM = 1;

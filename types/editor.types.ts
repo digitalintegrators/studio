@@ -16,9 +16,9 @@ export interface CropArea {
 }
 
 export interface VideoTransform {
-    rotation: number; // in degrees
-    translateX: number; // in percentage (-100 to 100)
-    translateY: number; // in percentage (-100 to 100)
+    rotation: number;
+    translateX: number;
+    translateY: number;
 }
 
 export const ASPECT_RATIO_DIMENSIONS: Record<AspectRatio, { width: number; height: number } | null> = {
@@ -47,7 +47,6 @@ export interface VideoCanvasHandle {
     getPreviewContainer: () => HTMLDivElement | null;
 }
 
-/** Thumbnail data for scrubbing preview */
 export interface VideoThumbnail {
     time: number;
     dataUrl: string;
@@ -74,6 +73,8 @@ export interface VideoCanvasProps {
     };
     apply3DToBackground?: boolean;
     imageMaskConfig?: import("@/types/photo.types").ImageMaskConfig;
+    videoMaskConfig?: import("@/types/photo.types").ImageMaskConfig;
+    onVideoMaskConfigChange?: (config: import("@/types/photo.types").ImageMaskConfig) => void;
     // Video-specific props
     videoRef: React.RefObject<HTMLVideoElement | null>;
     videoUrl: string | null;
@@ -83,20 +84,18 @@ export interface VideoCanvasProps {
     aspectRatio?: AspectRatio;
     customAspectRatio?: { width: number; height: number } | null;
     cropArea?: CropArea;
-    backgroundTab?: BackgroundTab; // Tab activo para determinar qué background mostrar
+    backgroundTab?: BackgroundTab;
     selectedWallpaper?: number;
     backgroundBlur?: number;
     selectedImageUrl?: string;
-    unsplashOverrideUrl?: string; // URL de imagen Unsplash seleccionada desde el tab wallpaper
-    backgroundColorCss?: string; // CSS string para color/gradiente personalizado
+    unsplashOverrideUrl?: string; 
+    backgroundColorCss?: string; 
     onTimeUpdate: () => void;
     onLoadedMetadata: () => void;
     onEnded: () => void;
-    // Scrubbing props for thumbnail preview
     isScrubbing?: boolean;
     scrubTime?: number;
     getThumbnailForTime?: (time: number) => VideoThumbnail | null;
-    // Zoom props
     zoomFragments?: ZoomFragment[];
     currentTime?: number;
     // Mockup props
