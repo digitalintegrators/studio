@@ -12,12 +12,12 @@ const poppins = Poppins({ subsets: ["latin"], weight: ["400", "500", "700"], var
 const montserrat = Montserrat({ subsets: ["latin"], weight: ["400", "500", "700"], variable: "--font-montserrat", display: "swap" });
 const dmSans = DM_Sans({ subsets: ["latin"], weight: ["400", "500", "700"], variable: "--font-dm-sans", display: "swap" });
 
-export default async function LocaleLayout({ 
-  children, 
-  params 
-}: { 
-  children: React.ReactNode; 
-  params: Promise<{ locale: string }>; 
+export default async function LocaleLayout({
+  children,
+  params
+}: {
+  children: React.ReactNode;
+  params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
 

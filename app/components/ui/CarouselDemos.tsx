@@ -2,29 +2,29 @@
 import React from "react";
 
 const videos = [
-  { src: "/images/pages/demo2.mp4", poster: "" },
-  { src: "/images/pages/demo.mp4", poster: "" },
-  { src: "https://media.w3.org/2010/05/sintel/trailer.mp4", poster: "https://images.unsplash.com/photo-1535016120720-40c7467d5283?w=800" },
-  { src: "https://www.w3schools.com/html/mov_bbb.mp4", poster: "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=800" },
-  { src: "https://media.w3.org/2010/05/sintel/trailer.mp4", poster: "https://images.unsplash.com/photo-1542204165-65bf26472b9b?w=800" },
-  { src: "https://www.w3schools.com/html/mov_bbb.mp4", poster: "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800" },
-  { src: "https://media.w3.org/2010/05/sintel/trailer.mp4", poster: "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=800" },
-  { src: "https://www.w3schools.com/html/mov_bbb.mp4", poster: "https://images.unsplash.com/photo-1478720568477-152d9b164e26?w=800" },
+  { src: "/images/carousel/videos/demo13s.mp4", poster: "/images/carousel/images/demo13s-poster.avif" },
+  { src: "/images/carousel/videos/demo2.mp4", poster: "/images/carousel/images/demo2-poster.avif" },
+  { src: "/images/carousel/videos/demo3.mp4", poster: "/images/carousel/images/demo3-poster.avif" },
+  { src: "/images/carousel/videos/demo4.mp4", poster: "/images/carousel/images/demo4-poster.avif" },
+  { src: "/images/carousel/videos/demo5.mp4", poster: "/images/carousel/images/demo5-poster.avif" },
+  { src: "/images/carousel/videos/demo6.mp4", poster: "/images/carousel/images/demo6-poster.avif" },
+  { src: "/images/carousel/videos/demo7.mp4", poster: "/images/carousel/images/demo7-poster.avif" },
+  { src: "/images/carousel/videos/demo8.mp4", poster: "/images/carousel/images/demo8-poster.avif" },
 ];
 
 const images = [
-  { src: "/images/pages/lovable.avif", alt: "Lovable" },
-  { src: "/images/pages/vegetative.avif", alt: "Vegetative" },
-  { src: "/images/pages/crafter.avif", alt: "Crafter" },
-  { src: "https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=800", alt: "City" },
-  { src: "https://images.unsplash.com/photo-1480796927426-f609979314bd?w=800", alt: "Architecture" },
-  { src: "https://images.unsplash.com/photo-1514539079130-25950c84af65?w=800", alt: "Building" },
-  { src: "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=800", alt: "Mountain" },
-  { src: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800", alt: "Nature" },
-  { src: "https://images.unsplash.com/photo-1433086966358-54859d0ed716?w=800", alt: "Landscape" },
-  { src: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800", alt: "Forest" },
-  { src: "https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?w=800", alt: "Trees" },
-  { src: "https://images.unsplash.com/photo-1465146344425-f00d5f5c8f07?w=800", alt: "Woods" },
+  { src: "/images/carousel/images/build.avif", alt: "Architecture" },
+  { src: "/images/carousel/images/crafter.avif", alt: "Crafter" },
+  { src: "/images/carousel/images/daily.avif", alt: "Building" },
+  { src: "/images/carousel/images/dash-dark.avif", alt: "Mountain" },
+  { src: "/images/carousel/images/dash-light.avif", alt: "Nature" },
+  { src: "/images/carousel/images/grok.avif", alt: "Landscape" },
+  { src: "/images/carousel/images/lovable.avif", alt: "Lovable" },
+  { src: "/images/carousel/images/mountain.avif", alt: "Trees" },
+  { src: "/images/carousel/images/nature.avif", alt: "Woods" },
+  { src: "/images/carousel/images/readline.avif", alt: "Readline" },
+  { src: "/images/carousel/images/openvid.avif", alt: "Forest" },
+  { src: "/images/carousel/images/kebo.avif", alt: "Vegetative" },
 ];
 
 export function CarouselDemos() {
@@ -33,7 +33,7 @@ export function CarouselDemos() {
       <style>{`
         .scene-3d {
           width: 100%;
-          height: 70vh; 
+          height: 65vh; 
           min-height: 800px;
           display: grid;
           overflow: hidden;
@@ -82,6 +82,12 @@ export function CarouselDemos() {
         }
         @media (prefers-reduced-motion: reduce) {
           .a3d-container { animation-duration: 120s; }
+        }
+        @media (width <= 640px) {
+          .scene-3d {
+            height: 65vh; 
+            min-height: 500px;
+          }
         }
       `}</style>
 

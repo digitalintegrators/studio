@@ -105,7 +105,7 @@ export function EditorTopBar({
     }, [showAlert]);
 
     return (
-        <div className="h-13 border-b border-white/10 flex items-center justify-between px-4 shrink-0 relative">
+        <div className="h-13 border-b border-white/10 flex items-center justify-between px-3 shrink-0 relative">
             {showAlert && (
                 <div className="fixed top-6 left-1/2 -translate-x-1/2 w-full max-w-md z-200 px-4 animate-in fade-in zoom-in slide-in-from-top-4 duration-300">
                     <Alert variant="info" className="relative border-red-500/50 bg-red-950/95 backdrop-blur-lg shadow-2xl overflow-hidden">
@@ -132,7 +132,7 @@ export function EditorTopBar({
 
             <div className="flex-1"></div>
 
-            <div className="flex items-center gap-3 ml-auto">
+            <div className="flex items-center ml-auto">
                 <div className="flex items-center gap-2 border-r border-white/10 pr-3">
                     <TooltipAction label={canUndo ? t("history.undo") : t("history.noUndo")}>
                         <button
