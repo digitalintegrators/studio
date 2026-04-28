@@ -949,7 +949,9 @@
       "group": "Grupo",
       "selected": "selec.",
       "groupAction": "Agrupar",
-      "ungroupAction": "Desag."
+      "ungroupAction": "Desag.",
+      "videoLayer": "Video",
+      "imageLayer": "Imagen"
     }
   },
   "historyMenu": {

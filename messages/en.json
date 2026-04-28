@@ -995,7 +995,9 @@
       "group": "Group",
       "selected": "selected",
       "groupAction": "Group",
-      "ungroupAction": "Ungroup"
+      "ungroupAction": "Ungroup",
+      "videoLayer": "Video",
+      "imageLayer": "Image"
     }
   },
   "playerControls": {
