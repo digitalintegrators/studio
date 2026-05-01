@@ -187,7 +187,7 @@ export function VideosMenu({
             className="group bg-[#09090B] border border-dashed border-white/10 hover:border-white/30 hover:bg-white/3 squircle-element p-8 text-center cursor-pointer transition-colors"
             role="button"
             tabIndex={0}
-            aria-label={t("empty.uploadButton")}
+            aria-label={t("emptyState.title")}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); triggerFileUpload(); } }}
           >
             <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform">
