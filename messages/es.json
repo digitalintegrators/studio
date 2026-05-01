@@ -383,7 +383,7 @@
       "description": "Graba tu voz en la misma pista.",
       "errorGeneric": "No se pudo acceder al micrófono.",
       "selectPlaceholder": "Seleccionar micrófono",
-      "default": "Micrófono predeterminado"
+      "default": "Micrófono "
     },
     "systemAudio": {
       "title": "Audio del sistema",

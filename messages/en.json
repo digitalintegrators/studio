@@ -387,7 +387,7 @@
       "description": "Record your voice on the same track.",
       "errorGeneric": "Could not access the microphone.",
       "selectPlaceholder": "Select microphone",
-      "default": "Default microphone"
+      "default": " microphone"
     },
     "systemAudio": {
       "title": "System Audio",
