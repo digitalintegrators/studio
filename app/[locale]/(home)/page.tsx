@@ -82,7 +82,7 @@ export default async function Home({ params }: Props) {
           </section>
 
           <section className="w-full" aria-label="Product preview">
-            <HeroScrollMask />
+            {/* <HeroScrollMask /> */}
           </section>
         </div>
 
@@ -100,7 +100,7 @@ export default async function Home({ params }: Props) {
               <EditorPreview />
             </div>
 
-            <CarouselDemos />
+            {/* <CarouselDemos /> */}
           </section>
         </div>
       </div>

@@ -55,7 +55,7 @@ export default async function DonatePage() {
       icon: "logos:paypal",
       color: "#009CDE",
       detail: t("paypal.detail"),
-      email: "oliverachavezcristian@gmail.com",
+      email: "edgar.moreno.mijares@gmail.com",
       link: "https://www.paypal.com/ncp/payment/AZ3LS98LJ9SM2",
     },
   ];
