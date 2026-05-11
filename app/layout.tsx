@@ -12,24 +12,24 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://openvid.dev'),
+  metadataBase: new URL('https://studio.laboratorios.digital'),
   title: {
-    default: "openvid - Crea demos profesionales y edita en segundos",
-    template: "%s | openvid",
+    default: "studio - Crea demos profesionales y edita en segundos",
+    template: "%s | studio",
   },
   description: "Crea demos cinemáticas y edita videos en segundos. Añade zooms suaves, mockups, personaliza fondos y exporta demos profesionales.",
-  applicationName: "openvid",
+  applicationName: "studio",
   keywords: [
-    "openvid",
+    "Studio",
     "edición de video",
     "zoom video",
     "grabación de pantalla",
     "creador de demos",
     "tomas cinemáticas",
     "mockups",
-    "Cristian Olivera",
+    "Edgar Moreno",
   ],
-  authors: [{ name: "Cristian Olivera" }],
+  authors: [{ name: "Edgar Moreno" }],
   robots: {
     index: true,
     follow: true,
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     },
   },
   alternates: {
-    canonical: "https://openvid.dev/",
+    canonical: "https://studio.laboratorios.digital/",
   },
   icons: {
     icon: "/images/metadata/favicon.svg",
@@ -48,8 +48,8 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: "website",
-    url: "https://openvid.dev/",
-    title: "openvid - Crea demos profesionales y edita en segundos",
+    url: "https://studio.laboratorios.digital/",
+    title: "studio - Crea demos profesionales y edita en segundos",
     description:
       "Añade zooms suaves, mockups, personaliza fondos y exporta demos profesionales sin editores complejos.",
     images: [
@@ -57,11 +57,11 @@ export const metadata: Metadata = {
         url: "https://openvid.dev/images/metadata/preview-openvid.jpg",
         width: 1200,
         height: 630,
-        alt: "openvid - Creador de demos, Graba Pantalla y Editor de Video",
+        alt: "studio - Creador de demos, Graba Pantalla y Editor de Video",
       },
     ],
     locale: "es_ES",
-    siteName: "openvid",
+    siteName: "studio",
   },
   twitter: {
     card: "summary_large_image",
@@ -69,8 +69,8 @@ export const metadata: Metadata = {
     description:
       "Añade zooms suaves, mockups, personaliza fondos y exporta demos profesionales sin editores complejos.",
     images: ["https://openvid.dev/images/metadata/preview-openvid.jpg"],
-    creator: "@cristianolivera",
-    site: "@openviddev",
+    creator: "@edgar__moreno",
+    site: "@laboratoriosdigitales",
   },
   other: {
     "msapplication-TileColor": "#1f2937",

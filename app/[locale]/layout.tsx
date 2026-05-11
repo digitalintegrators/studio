@@ -19,7 +19,7 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale } = await params;
-  const baseUrl = 'https://openvid.dev';
+  const baseUrl = 'https://laboratorios.digital';
 
   const languages: Record<string, string> = {};
   locales.forEach((loc) => {
