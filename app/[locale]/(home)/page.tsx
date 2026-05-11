@@ -100,7 +100,7 @@ export default async function Home({ params }: Props) {
               <EditorPreview />
             </div>
 
-            {/* <CarouselDemos /> */}
+            <CarouselDemos />
           </section>
         </div>
       </div>
