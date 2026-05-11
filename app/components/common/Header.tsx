@@ -1,6 +1,6 @@
 "use client";
+
 import { useState, useEffect } from "react";
-import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { Link } from "@/navigation";
 import { UserMenu } from "./UserMenu";
@@ -14,27 +14,23 @@ import RecordingSetupDialog from "../ui/RecordingSetupDialog";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 export default function Header() {
-  const t = useTranslations('header');
-  const tRecording = useTranslations('recording.steps');
+  const t = useTranslations("header");
+  const tRecording = useTranslations("recording.steps");
 
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
-  const { startCountdown, stopRecording, isIdle, isRecording, isCountdown, isProcessing } = useRecording();
+  const { startCountdown, stopRecording, isRecording, isCountdown, isProcessing } = useRecording();
   const [setupDialogOpen, setSetupDialogOpen] = useState(false);
   const [showMobileAlert, setShowMobileAlert] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsMounted(true);
-    }, 0);
+    const timer = setTimeout(() => setIsMounted(true), 0);
     return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
-    };
+    const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
@@ -45,8 +41,10 @@ export default function Header() {
       return;
     }
 
-    const isMobile = typeof window !== "undefined" &&
-      (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768);
+    const isMobile =
+      typeof window !== "undefined" &&
+      (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+        window.innerWidth < 768);
 
     if (isMobile) {
       setShowMobileAlert(true);
@@ -60,28 +58,40 @@ export default function Header() {
     if (isCountdown || isProcessing) {
       return <Icon icon="eos-icons:loading" className="w-4 h-4 animate-spin" aria-hidden="true" />;
     }
+
     if (isRecording) {
       return <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" aria-hidden="true" />;
     }
+
     return <Icon icon="material-symbols:cast-outline-rounded" className="w-4 h-4" aria-hidden="true" />;
   };
 
   return (
     <>
-      <header className={cn(
-        "fixed top-0 w-full z-50 transition-all duration-300",
-        isScrolled ? "border-b border-white/10 bg-[#050505]/80 backdrop-blur-xl py-0" : "bg-transparent border-transparent py-2"
-      )}
+      <header
+        className={cn(
+          "fixed top-0 w-full z-50 transition-all duration-300",
+          isScrolled
+            ? "border-b border-white/10 bg-[#050505]/80 backdrop-blur-xl py-0"
+            : "bg-transparent border-transparent py-2"
+        )}
       >
         <div className="max-w-6xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 group" aria-label="OpenVid - Go to home">
-            <Image src="/svg/logo-openvid.svg" alt="" aria-hidden="true" width={50} height={50} style={{ height: "auto" }} />
-            <Image src="/svg/openvid.svg" alt="OpenVid" width={100} height={50} className="hidden sm:flex" style={{ height: "auto" }} />
+          <Link href="/" className="flex items-center gap-2 group" aria-label="Studio - Ir al inicio">
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-400/30 flex items-center justify-center shadow-[0_0_30px_rgba(34,211,238,0.15)]">
+                <Icon icon="material-symbols:play-circle-rounded" className="w-5 h-5 text-cyan-300" aria-hidden="true" />
+              </div>
+              <span className="hidden sm:inline-flex text-white font-bold tracking-tight text-lg">
+                Studio
+              </span>
+            </div>
           </Link>
 
           <nav className="hidden md:flex items-center gap-8 text-md font-medium text-neutral-400" aria-label="Main navigation">
-            <a href="#docs" className="hover:text-white transition-colors">{t('docs')}</a>
-            <Link href="/donate" target="_blank" className="hover:text-white transition-colors">{t('donate')}</Link>
+            <a href="#docs" className="hover:text-white transition-colors">
+              Documentación
+            </a>
           </nav>
 
           <div className="flex items-center gap-3 sm:gap-6">
@@ -89,7 +99,7 @@ export default function Header() {
               variant="outline"
               onClick={handleHeaderAction}
               disabled={isCountdown || isProcessing}
-              aria-label={isRecording ? tRecording('step4.visual.stop') : t('screen')}
+              aria-label={isRecording ? tRecording("step4.visual.stop") : t("screen")}
               aria-pressed={isRecording}
               className={cn(
                 "transition-all hidden sm:flex",
@@ -98,10 +108,14 @@ export default function Header() {
             >
               {getButtonContent()}
               <span className="text-xs font-bold tracking-tight">
-                {isRecording ? tRecording('step4.visual.stop') : t('screen')}
+                {isRecording ? tRecording("step4.visual.stop") : t("screen")}
               </span>
+
               {!isRecording && (
-                <kbd className="hidden lg:flex items-center ml-1 px-1.5 py-0.5 rounded bg-black/20 border border-white/20 text-[9px] font-black text-white/80 uppercase" aria-label="Alt + S">
+                <kbd
+                  className="hidden lg:flex items-center ml-1 px-1.5 py-0.5 rounded bg-black/20 border border-white/20 text-[9px] font-black text-white/80 uppercase"
+                  aria-label="Alt + S"
+                >
                   Alt + S
                 </kbd>
               )}
@@ -109,7 +123,7 @@ export default function Header() {
 
             <div className="flex items-center gap-2">
               {!isMounted ? (
-                <div className="w-25 h-9 rounded-md bg-white/10 animate-pulse border border-white/5"></div>
+                <div className="w-25 h-9 rounded-md bg-white/10 animate-pulse border border-white/5" />
               ) : (
                 <LanguageSwitcher />
               )}
@@ -117,8 +131,8 @@ export default function Header() {
               <div className="block">
                 {!isMounted ? (
                   <div className="flex items-center gap-2 px-2 py-1">
-                    <div className="w-8 h-8 rounded-full bg-white/10 animate-pulse border border-white/5"></div>
-                    <div className="w-24 h-4 rounded-md bg-white/10 animate-pulse"></div>
+                    <div className="w-8 h-8 rounded-full bg-white/10 animate-pulse border border-white/5" />
+                    <div className="w-24 h-4 rounded-md bg-white/10 animate-pulse" />
                   </div>
                 ) : (
                   <UserMenu />
@@ -126,12 +140,11 @@ export default function Header() {
               </div>
 
               {!isMounted ? (
-                <div className="w-9 h-9 rounded-md bg-white/10 animate-pulse border border-white/5"></div>
+                <div className="w-9 h-9 rounded-md bg-white/10 animate-pulse border border-white/5" />
               ) : (
                 <MobileMenu />
               )}
             </div>
-
           </div>
         </div>
 
@@ -139,8 +152,8 @@ export default function Header() {
           <div className="absolute top-20 left-1/2 -translate-x-1/2 w-full max-w-xs px-4">
             <Alert variant="warning" className="bg-[#0A0A0A] border-yellow-500/50" role="alert">
               <Icon icon="solar:laptop-minimalistic-broken" className="text-xl" aria-hidden="true" />
-              <AlertTitle>{tRecording('step1.permissionRequired')}</AlertTitle>
-              <AlertDescription>{tRecording('step1.mobileAlert')}</AlertDescription>
+              <AlertTitle>{tRecording("step1.permissionRequired")}</AlertTitle>
+              <AlertDescription>{tRecording("step1.mobileAlert")}</AlertDescription>
             </Alert>
           </div>
         )}

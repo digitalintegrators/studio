@@ -16,15 +16,14 @@ const images = [
   { src: "/images/carousel/images/build.avif", alt: "Architecture" },
   { src: "/images/carousel/images/crafter.avif", alt: "Crafter" },
   { src: "/images/carousel/images/daily.avif", alt: "Building" },
-  { src: "/images/carousel/images/dash-dark.avif", alt: "Mountain" },
-  { src: "/images/carousel/images/dash-light.avif", alt: "Nature" },
-  { src: "/images/carousel/images/grok.avif", alt: "Landscape" },
+  { src: "/images/carousel/images/dash-dark.avif", alt: "Dashboard dark" },
+  { src: "/images/carousel/images/dash-light.avif", alt: "Dashboard light" },
+  { src: "/images/carousel/images/grok.avif", alt: "AI interface" },
   { src: "/images/carousel/images/lovable.avif", alt: "Lovable" },
-  { src: "/images/carousel/images/mountain.avif", alt: "Trees" },
-  { src: "/images/carousel/images/nature.avif", alt: "Woods" },
+  { src: "/images/carousel/images/mountain.avif", alt: "Mountain" },
+  { src: "/images/carousel/images/nature.avif", alt: "Nature" },
   { src: "/images/carousel/images/readline.avif", alt: "Readline" },
-  { src: "/images/carousel/images/openvid.avif", alt: "Forest" },
-  { src: "/images/carousel/images/kebo.avif", alt: "Vegetative" },
+  { src: "/images/carousel/images/kebo.avif", alt: "Interface preview" },
 ];
 
 export function CarouselDemos() {
@@ -76,8 +75,6 @@ export function CarouselDemos() {
           border-radius: 1rem;
           backface-visibility: hidden;
           box-shadow: 0 15px 40px -10px rgba(0, 0, 0, 0.9);
-          transform: rotateY(calc(var(--i) * var(--ba))) 
-                     translateZ(calc(-1 * (0.5 * var(--w) + 1.5em) / Math.tan(0.5 * var(--ba))));
           transform: rotateY(calc(var(--i) * var(--ba))) translateZ(calc(-1 * (0.5 * var(--w) + 1.5em) / tan(0.5 * var(--ba))));
         }
         @media (prefers-reduced-motion: reduce) {
@@ -100,6 +97,7 @@ export function CarouselDemos() {
             aria-hidden="true"
           />
         </div>
+
         <div className="absolute bottom-10 sm:bottom-0 right-1/4 z-10 pointer-events-none">
           <img
             src="/images/carousel/decorators/sparkle-move.svg"
@@ -108,6 +106,7 @@ export function CarouselDemos() {
             aria-hidden="true"
           />
         </div>
+
         <div className="a3d-container row-videos" style={{ "--n": videos.length } as React.CSSProperties}>
           {videos.map((vid, index) => (
             <video
