@@ -45,7 +45,7 @@ import { VIDEO_Z_INDEX } from "@/lib/constants";
 import Image from "next/image";
 import Link from "next/link";
 import { TooltipAction } from "@/components/ui/tooltip-action";
-import type { CursorConfig } from "@/types/cursor.types";
+import type { CursorConfig, CursorRecordingData } from "@/types/cursor.types";
 import { DEFAULT_CURSOR_CONFIG } from "@/types/cursor.types";
 
 const ControlPanel = lazy(() => import("@/app/components/ui/editor/ControlPanel").then(mod => ({ default: mod.ControlPanel })));
@@ -227,6 +227,9 @@ export default function Editor() {
     const [isRecordedVideo, setIsRecordedVideo] = useState<boolean>(false);
     const [cursorConfig, setCursorConfig] =
         useState<CursorConfig>(DEFAULT_CURSOR_CONFIG);
+
+    const [cursorData, setCursorData] =
+        useState<CursorRecordingData | undefined>(undefined);
 
     const handleCursorConfigChange = useCallback(
         (partial: Partial<CursorConfig>) => {
@@ -972,6 +975,7 @@ export default function Editor() {
         setMasterVolume(editorState.masterVolume);
         setCameraConfig(editorState.cameraConfig);
         setVideoTransform(editorState.videoTransform);
+        setCursorConfig(editorState.cursorConfig);
         setImageTransform(editorState.imageTransform);
         setApply3DToBackground(editorState.apply3DToBackground);
         setImageMaskConfig(editorState.imageMaskConfig);
@@ -1872,6 +1876,12 @@ export default function Editor() {
                             setIsRecordedVideo(true);
                         } else {
                             setIsRecordedVideo(false);
+                        }
+
+                        if ('cursorData' in videoToLoad && videoToLoad.cursorData) {
+                            setCursorData(videoToLoad.cursorData);
+                        } else {
+                            setCursorData(undefined);
                         }
 
                         if ('cameraUrl' in videoToLoad && videoToLoad.cameraUrl) {
@@ -2826,6 +2836,7 @@ export default function Editor() {
                                         onUploadImageToHistory={handleUploadImageToHistory}
                                         elementsTextTabTrigger={elementsTextTabTrigger}
                                         cursorConfig={cursorConfig}
+                                        cursorData={cursorData}
                                         onCursorConfigChange={handleCursorConfigChange}
                                         isRecordedVideo={isRecordedVideo}
                                     />
@@ -2926,6 +2937,7 @@ export default function Editor() {
                         cameraUrl={effectiveCameraUrl}
                         cameraConfig={cameraConfig}
                         cursorConfig={cursorConfig}
+                        cursorData={cursorData}
                         onCameraConfigChange={handleCameraConfigChange}
                         onCameraClick={handleCameraClick}
                         onEnded={() => {

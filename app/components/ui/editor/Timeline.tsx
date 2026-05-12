@@ -544,7 +544,7 @@ export function Timeline({
                                     }}
                                 >
                                     <div
-                                        className="h-full flex items-center relative"
+                                        className="h-full flex items-center relative px-1"
                                         style={{ width: contentWidth > 0 ? contentWidth : '100%' }}
                                     >
                                         {/* Dynamic zoom fragments with drag/resize */}
@@ -621,9 +621,9 @@ export function Timeline({
 
                                 {/* Audio track - only show if there are audio tracks */}
                                 {audioTracks.length > 0 && (
-                                    <div className="h-5 shrink-0 flex items-center border-t border-white/5 relative">
+                                    <div className="h-10 shrink-0 flex items-center border-t border-white/5 relative bg-[#0b1220]">
                                         <div
-                                            className="h-full flex items-center relative"
+                                            className="h-full flex items-center relative px-1"
                                             style={{ width: contentWidth > 0 ? contentWidth : '100%' }}
                                         >
                                             {audioTracks.map((track) => {

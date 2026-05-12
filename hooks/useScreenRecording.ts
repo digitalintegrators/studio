@@ -2,19 +2,30 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter, usePathname } from "@/navigation";
-import type { RecordingState, RecordingResult, VideoData } from "@/types";
-import type { CameraConfig, RecordingSetupConfig } from "@/types/camera.types";
+import type { RecordingState } from "@/types";
+import type {
+  CameraConfig,
+  RecordingSetupConfig,
+} from "@/types/camera.types";
+import type {
+  CursorRecordingData,
+  CursorKeyframe,
+} from "@/types/cursor.types";
+
 import {
   DEFAULT_RECORDING_SETUP,
   requestCameraStream,
   requestMicrophoneStream,
 } from "@/types/camera.types";
+
 import { clearAllThumbnailCache } from "@/lib/thumbnail-cache";
 
-export type { RecordingState, RecordingResult, VideoData };
+export type { RecordingState };
 
 function generateVideoId(): string {
-  return `vid_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  return `vid_${Date.now()}_${Math.random()
+    .toString(36)
+    .substring(2, 9)}`;
 }
 
 function getPermissionErrorMessage(error: unknown): string {
@@ -61,7 +72,9 @@ async function cleanupOldRecordings(db: IDBDatabase): Promise<void> {
           const getRequest = store.get(key);
 
           getRequest.onsuccess = () => {
-            const record = getRequest.result as { timestamp?: number } | undefined;
+            const record = getRequest.result as
+              | { timestamp?: number }
+              | undefined;
 
             if (record?.timestamp && record.timestamp < cutoff) {
               store.delete(key);
@@ -82,7 +95,7 @@ async function getDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const dbName = "openvidDB";
     const storeName = "videos";
-    const version = 2;
+    const version = 3;
 
     const request = indexedDB.open(dbName, version);
 
@@ -97,29 +110,8 @@ async function getDB(): Promise<IDBDatabase> {
     request.onsuccess = () => {
       const db = request.result;
 
-      if (!db.objectStoreNames.contains(storeName)) {
-        db.close();
-
-        const retryRequest = indexedDB.open(dbName, version + 1);
-
-        retryRequest.onupgradeneeded = (event) => {
-          const retryDb = (event.target as IDBOpenDBRequest).result;
-
-          if (!retryDb.objectStoreNames.contains(storeName)) {
-            retryDb.createObjectStore(storeName);
-          }
-        };
-
-        retryRequest.onsuccess = () => {
-          cleanupOldRecordings(retryRequest.result).catch(() => {});
-          resolve(retryRequest.result);
-        };
-
-        retryRequest.onerror = () => reject(retryRequest.error);
-      } else {
-        cleanupOldRecordings(db).catch(() => {});
-        resolve(db);
-      }
+      cleanupOldRecordings(db).catch(() => {});
+      resolve(db);
     };
 
     request.onerror = () => reject(request.error);
@@ -132,6 +124,7 @@ async function saveVideoToIndexedDB(
   extras: {
     cameraBlob?: Blob | null;
     cameraConfig?: CameraConfig | null;
+    cursorData?: CursorRecordingData | null;
   } = {}
 ): Promise<string> {
   try {
@@ -144,9 +137,8 @@ async function saveVideoToIndexedDB(
   const db = await getDB();
 
   return new Promise((resolve, reject) => {
-    const storeName = "videos";
-    const transaction = db.transaction([storeName], "readwrite");
-    const store = transaction.objectStore(storeName);
+    const transaction = db.transaction(["videos"], "readwrite");
+    const store = transaction.objectStore("videos");
 
     const videoData = {
       blob,
@@ -156,6 +148,7 @@ async function saveVideoToIndexedDB(
       isRecordedVideo: true,
       cameraBlob: extras.cameraBlob ?? null,
       cameraConfig: extras.cameraConfig ?? null,
+      cursorData: extras.cursorData ?? null,
     };
 
     const putRequest = store.put(videoData, videoId);
@@ -192,19 +185,15 @@ export async function loadVideoFromIndexedDB(): Promise<{
   cameraBlob?: Blob | null;
   cameraUrl?: string | null;
   cameraConfig?: CameraConfig | null;
+  cursorData?: CursorRecordingData | null;
 } | null> {
   try {
     const db = await getDB();
-    const storeName = "videos";
-
-    if (!db.objectStoreNames.contains(storeName)) {
-      db.close();
-      return null;
-    }
 
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([storeName], "readonly");
-      const store = transaction.objectStore(storeName);
+      const transaction = db.transaction(["videos"], "readonly");
+      const store = transaction.objectStore("videos");
+
       const currentRequest = store.get("currentVideo");
 
       currentRequest.onsuccess = () => {
@@ -221,12 +210,6 @@ export async function loadVideoFromIndexedDB(): Promise<{
             ? currentData
             : currentData.videoId;
 
-        if (!currentVideoId) {
-          db.close();
-          resolve(null);
-          return;
-        }
-
         const videoRequest = store.get(currentVideoId);
 
         videoRequest.onsuccess = () => {
@@ -240,21 +223,22 @@ export async function loadVideoFromIndexedDB(): Promise<{
           }
 
           const url = URL.createObjectURL(data.blob);
-          const videoId = data.videoId || currentVideoId;
-          const timestamp = data.timestamp || Date.now();
+
           const cameraBlob: Blob | null = data.cameraBlob ?? null;
-          const cameraUrl = cameraBlob ? URL.createObjectURL(cameraBlob) : null;
 
           resolve({
             blob: data.blob,
             duration: data.duration,
             url,
-            videoId,
-            timestamp,
+            videoId: data.videoId,
+            timestamp: data.timestamp,
             isRecordedVideo: data.isRecordedVideo || false,
             cameraBlob,
-            cameraUrl,
+            cameraUrl: cameraBlob
+              ? URL.createObjectURL(cameraBlob)
+              : null,
             cameraConfig: data.cameraConfig ?? null,
+            cursorData: data.cursorData ?? null,
           });
         };
 
@@ -278,20 +262,16 @@ export async function loadVideoFromIndexedDB(): Promise<{
 export async function deleteRecordedVideo(): Promise<void> {
   try {
     const db = await getDB();
-    const storeName = "videos";
-
-    if (!db.objectStoreNames.contains(storeName)) {
-      db.close();
-      return;
-    }
 
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([storeName], "readwrite");
-      const store = transaction.objectStore(storeName);
+      const transaction = db.transaction(["videos"], "readwrite");
+      const store = transaction.objectStore("videos");
+
       const currentRequest = store.get("currentVideo");
 
       currentRequest.onsuccess = () => {
         const currentData = currentRequest.result;
+
         const currentVideoId =
           typeof currentData === "string"
             ? currentData
@@ -330,9 +310,7 @@ function pickSupportedMimeType(preferred: string[]): string | undefined {
   for (const mimeType of preferred) {
     try {
       if (MediaRecorder.isTypeSupported(mimeType)) return mimeType;
-    } catch {
-      // continue
-    }
+    } catch {}
   }
 
   return undefined;
@@ -343,27 +321,38 @@ export function useScreenRecording() {
   const [countdown, setCountdown] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [recordingTime, setRecordingTime] = useState<number>(0);
-  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
-  const [cameraConfig, setCameraConfig] = useState<CameraConfig | null>(null);
+
+  const [cameraStream, setCameraStream] =
+    useState<MediaStream | null>(null);
+
+  const [cameraConfig, setCameraConfig] =
+    useState<CameraConfig | null>(null);
 
   const router = useRouter();
   const pathname = usePathname();
 
   const screenRecorderRef = useRef<MediaRecorder | null>(null);
   const cameraRecorderRef = useRef<MediaRecorder | null>(null);
+
   const screenChunksRef = useRef<Blob[]>([]);
   const cameraChunksRef = useRef<Blob[]>([]);
 
   const screenStreamRef = useRef<MediaStream | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
+
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   const startTimeRef = useRef<number>(0);
+
   const originalTitleRef = useRef<string>("");
+
   const stateRef = useRef<RecordingState>("idle");
-  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const cameraConfigRef = useRef<CameraConfig | null>(null);
+
+  const cursorFramesRef = useRef<CursorKeyframe[]>([]);
+  const cursorTrackingCleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     stateRef.current = state;
@@ -373,76 +362,72 @@ export function useScreenRecording() {
     cameraConfigRef.current = cameraConfig;
   }, [cameraConfig]);
 
-  const setTitle = useCallback((title: string) => {
-    if (typeof document === "undefined") return;
-    document.title = title;
-  }, []);
+  const startCursorTracking = useCallback(() => {
+    cursorFramesRef.current = [];
 
-  const restoreOriginals = useCallback(() => {
-    setTitle(originalTitleRef.current || titles.idle);
-  }, [setTitle]);
+    const start = performance.now();
 
-  useEffect(() => {
-    if (typeof document !== "undefined") {
-      originalTitleRef.current = document.title;
-    }
-  }, []);
+    const handleMove = (e: MouseEvent) => {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
 
-  useEffect(() => {
-    if (state === "idle") {
-      restoreOriginals();
-    } else if (state === "countdown") {
-      setTitle(titles.countdown(countdown));
-    } else if (state === "recording") {
-      const minutes = Math.floor(recordingTime / 60)
-        .toString()
-        .padStart(2, "0");
-      const seconds = (recordingTime % 60).toString().padStart(2, "0");
-
-      setTitle(`Grabando ${minutes}:${seconds}`);
-    } else if (state === "processing") {
-      setTitle(titles.processing);
-    }
-  }, [state, countdown, recordingTime, setTitle, restoreOriginals]);
-
-  useEffect(() => {
-    if (state !== "recording") return;
-
-    const interval = setInterval(() => {
-      setRecordingTime((prev) => prev + 1);
-    }, 1000);
-
-    recordingTimerRef.current = interval;
-
-    return () => {
-      clearInterval(interval);
-      recordingTimerRef.current = null;
+      cursorFramesRef.current.push({
+        time: (performance.now() - start) / 1000,
+        x: (e.clientX / width) * 100,
+        y: (e.clientY / height) * 100,
+        state: "default",
+        clicking: false,
+      });
     };
-  }, [state]);
+
+    const handleDown = (e: MouseEvent) => {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+
+      cursorFramesRef.current.push({
+        time: (performance.now() - start) / 1000,
+        x: (e.clientX / width) * 100,
+        y: (e.clientY / height) * 100,
+        state: "pointer",
+        clicking: true,
+      });
+    };
+
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mousedown", handleDown);
+
+    cursorTrackingCleanupRef.current = () => {
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mousedown", handleDown);
+    };
+  }, []);
+
+  const stopCursorTracking = useCallback(() => {
+    cursorTrackingCleanupRef.current?.();
+    cursorTrackingCleanupRef.current = null;
+  }, []);
 
   const cleanupStreams = useCallback(() => {
-    if (screenStreamRef.current) {
-      screenStreamRef.current.getTracks().forEach((track) => track.stop());
-      screenStreamRef.current = null;
-    }
+    screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+    cameraStreamRef.current?.getTracks().forEach((t) => t.stop());
+    micStreamRef.current?.getTracks().forEach((t) => t.stop());
 
-    if (cameraStreamRef.current) {
-      cameraStreamRef.current.getTracks().forEach((track) => track.stop());
-      cameraStreamRef.current = null;
-    }
-
-    if (micStreamRef.current) {
-      micStreamRef.current.getTracks().forEach((track) => track.stop());
-      micStreamRef.current = null;
-    }
-
-    if (audioCtxRef.current && audioCtxRef.current.state !== "closed") {
+    if (
+      audioCtxRef.current &&
+      audioCtxRef.current.state !== "closed"
+    ) {
       audioCtxRef.current.close().catch(() => undefined);
-      audioCtxRef.current = null;
     }
+
+    screenStreamRef.current = null;
+    cameraStreamRef.current = null;
+    micStreamRef.current = null;
+    audioCtxRef.current = null;
 
     setCameraStream(null);
-  }, []);
+
+    stopCursorTracking();
+  }, [stopCursorTracking]);
 
   const stopRecording = useCallback(() => {
     if (
@@ -460,23 +445,30 @@ export function useScreenRecording() {
     }
   }, []);
 
-  const updateCameraConfig = useCallback((partial: Partial<CameraConfig>) => {
-    setCameraConfig((prev) => (prev ? { ...prev, ...partial } : prev));
-  }, []);
+  const updateCameraConfig = useCallback(
+    (partial: Partial<CameraConfig>) => {
+      setCameraConfig((prev) =>
+        prev ? { ...prev, ...partial } : prev
+      );
+    },
+    []
+  );
 
   const startRecording = useCallback(
     (screenStream: MediaStream, camStream: MediaStream | null) => {
       try {
+        cursorFramesRef.current = [];
+        startCursorTracking();
+
         screenChunksRef.current = [];
         cameraChunksRef.current = [];
+
         startTimeRef.current = Date.now();
 
         const screenMime =
           pickSupportedMimeType([
             "video/webm;codecs=vp9,opus",
             "video/webm;codecs=vp8,opus",
-            "video/webm;codecs=vp9",
-            "video/webm;codecs=vp8",
             "video/webm",
           ]) || undefined;
 
@@ -493,28 +485,10 @@ export function useScreenRecording() {
           }
         };
 
-        screenRecorder.onerror = (event) => {
-          console.error("Error del MediaRecorder de pantalla:", event);
-          setError("Error durante la grabación de pantalla.");
-          setState("idle");
-          cleanupStreams();
-          restoreOriginals();
-        };
-
         let cameraRecorder: MediaRecorder | null = null;
 
         if (camStream) {
-          const camMime =
-            pickSupportedMimeType([
-              "video/webm;codecs=vp9",
-              "video/webm;codecs=vp8",
-              "video/webm",
-            ]) || undefined;
-
-          cameraRecorder = new MediaRecorder(
-            camStream,
-            camMime ? { mimeType: camMime } : undefined
-          );
+          cameraRecorder = new MediaRecorder(camStream);
 
           cameraRecorderRef.current = cameraRecorder;
 
@@ -523,20 +497,30 @@ export function useScreenRecording() {
               cameraChunksRef.current.push(event.data);
             }
           };
-
-          cameraRecorder.onerror = (event) => {
-            console.error("Error del MediaRecorder de cámara:", event);
-          };
         }
 
         let pendingCount = cameraRecorder ? 2 : 1;
+
         let screenBlob: Blob | null = null;
         let cameraBlob: Blob | null = null;
 
         const finalize = async () => {
           setState("processing");
 
-          const duration = (Date.now() - startTimeRef.current) / 1000;
+          const duration =
+            (Date.now() - startTimeRef.current) / 1000;
+
+          stopCursorTracking();
+
+          const cursorData: CursorRecordingData = {
+            hasCursorData: cursorFramesRef.current.length > 0,
+            keyframes: cursorFramesRef.current,
+            videoDimensions: {
+              width: screenStream.getVideoTracks()[0]?.getSettings().width ?? 1920,
+              height: screenStream.getVideoTracks()[0]?.getSettings().height ?? 1080,
+            },
+              frameRate: screenStream.getVideoTracks()[0]?.getSettings().frameRate ?? 30,
+          };
 
           cleanupStreams();
 
@@ -547,6 +531,7 @@ export function useScreenRecording() {
               {
                 cameraBlob,
                 cameraConfig: cameraConfigRef.current,
+                cursorData,
               }
             );
 
@@ -558,10 +543,10 @@ export function useScreenRecording() {
               router.push("/editor");
             }
           } catch (err) {
-            console.error("Error al guardar video:", err);
-            setError("Error al procesar y guardar el video.");
+            console.error(err);
+
+            setError("Error al guardar el video.");
             setState("idle");
-            restoreOriginals();
           }
         };
 
@@ -570,12 +555,10 @@ export function useScreenRecording() {
             type: "video/webm",
           });
 
-          pendingCount -= 1;
+          pendingCount--;
 
           if (pendingCount <= 0) {
             finalize();
-          } else if (cameraRecorder && cameraRecorder.state !== "inactive") {
-            cameraRecorder.stop();
           }
         };
 
@@ -585,15 +568,10 @@ export function useScreenRecording() {
               type: "video/webm",
             });
 
-            pendingCount -= 1;
+            pendingCount--;
 
             if (pendingCount <= 0) {
               finalize();
-            } else if (
-              screenRecorderRef.current &&
-              screenRecorderRef.current.state !== "inactive"
-            ) {
-              screenRecorderRef.current.stop();
             }
           };
         }
@@ -602,47 +580,41 @@ export function useScreenRecording() {
 
         setTimeout(() => {
           startTimeRef.current = Date.now();
+
           screenRecorder.start(1000);
           cameraRecorder?.start(1000);
         }, 300);
       } catch (err) {
-        console.error("Error al iniciar grabación:", err);
+        console.error(err);
+
         setError(getPermissionErrorMessage(err));
-        setState("idle");
+
         cleanupStreams();
-        restoreOriginals();
+
+        setState("idle");
       }
     },
-    [router, pathname, restoreOriginals, cleanupStreams]
+    [
+      router,
+      pathname,
+      cleanupStreams,
+      startCursorTracking,
+      stopCursorTracking,
+    ]
   );
 
   const startCountdown = useCallback(
     async (setupArg?: RecordingSetupConfig) => {
-      const setup: RecordingSetupConfig = setupArg ?? DEFAULT_RECORDING_SETUP;
+      const setup = setupArg ?? DEFAULT_RECORDING_SETUP;
 
       try {
         setError(null);
-        setRecordingTime(0);
 
-        if (!navigator.mediaDevices?.getDisplayMedia) {
-          setError(
-            "Tu navegador no soporta grabación de pantalla. Usa Chrome, Edge o un navegador compatible."
-          );
-          return;
-        }
-
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: {
-            displaySurface: "browser",
-          },
-          audio: setup.systemAudio
-            ? {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true,
-              }
-            : false,
-        });
+        const screenStream =
+          await navigator.mediaDevices.getDisplayMedia({
+            video: true,
+            audio: setup.systemAudio,
+          });
 
         screenStreamRef.current = screenStream;
 
@@ -650,157 +622,59 @@ export function useScreenRecording() {
 
         if (setup.camera.enabled) {
           try {
-            camStream = await requestCameraStream(setup.camera.deviceId);
+            camStream = await requestCameraStream(
+              setup.camera.deviceId
+            );
+
             cameraStreamRef.current = camStream;
+
             setCameraStream(camStream);
             setCameraConfig(setup.camera);
           } catch (err) {
-            console.warn("Cámara denegada, continuando sin cámara:", err);
-            setCameraConfig(null);
+            console.warn(err);
           }
-        } else {
-          setCameraConfig(null);
-        }
-
-        let micStream: MediaStream | null = null;
-
-        if (setup.microphone.enabled) {
-          try {
-            micStream = await requestMicrophoneStream(
-              setup.microphone.deviceId,
-              {
-                noiseSuppression: setup.microphone.noiseSuppression,
-                echoCancellation: setup.microphone.echoCancellation,
-              }
-            );
-
-            micStreamRef.current = micStream;
-          } catch (err) {
-            console.warn("Micrófono denegado, continuando sin micrófono:", err);
-          }
-        }
-
-        const screenAudioTracks = screenStream.getAudioTracks();
-        const micAudioTracks = micStream ? micStream.getAudioTracks() : [];
-        const needsMixing =
-          screenAudioTracks.length > 0 || micAudioTracks.length > 0;
-
-        let finalScreenStream: MediaStream = screenStream;
-
-        if (needsMixing) {
-          try {
-            const AudioCtx =
-              window.AudioContext ||
-              (window as unknown as { webkitAudioContext: typeof AudioContext })
-                .webkitAudioContext;
-
-            const audioCtx = new AudioCtx();
-            audioCtxRef.current = audioCtx;
-
-            const destination = audioCtx.createMediaStreamDestination();
-
-            if (screenAudioTracks.length > 0) {
-              const screenSource = audioCtx.createMediaStreamSource(
-                new MediaStream(screenAudioTracks)
-              );
-
-              const screenGain = audioCtx.createGain();
-              screenGain.gain.value = 1;
-
-              screenSource.connect(screenGain);
-              screenGain.connect(destination);
-            }
-
-            if (micAudioTracks.length > 0) {
-              const micSource = audioCtx.createMediaStreamSource(
-                new MediaStream(micAudioTracks)
-              );
-
-              const micGain = audioCtx.createGain();
-              micGain.gain.value = setup.microphone.volume ?? 1;
-
-              micSource.connect(micGain);
-              micGain.connect(destination);
-            }
-
-            finalScreenStream = new MediaStream([
-              ...screenStream.getVideoTracks(),
-              ...destination.stream.getAudioTracks(),
-            ]);
-          } catch (err) {
-            console.warn(
-              "Error al mezclar audio. Se usará el stream original de pantalla:",
-              err
-            );
-
-            finalScreenStream = screenStream;
-          }
-        }
-
-        const screenVideoTrack = screenStream.getVideoTracks()[0];
-
-        if (screenVideoTrack) {
-          screenVideoTrack.onended = () => {
-            if (stateRef.current === "recording") {
-              stopRecording();
-            } else {
-              setState("idle");
-              cleanupStreams();
-              restoreOriginals();
-            }
-          };
         }
 
         setState("countdown");
-        setCountdown(4);
+        setCountdown(3);
 
-        let count = 4;
+        let count = 3;
 
-        const countdownInterval = setInterval(() => {
-          count -= 1;
+        const interval = setInterval(() => {
+          count--;
+
           setCountdown(count);
 
           if (count <= 0) {
-            clearInterval(countdownInterval);
-            startRecording(finalScreenStream, camStream);
+            clearInterval(interval);
+
+            startRecording(screenStream, camStream);
           }
         }, 1000);
       } catch (err) {
-        console.error("Error al iniciar captura:", err);
+        console.error(err);
+
         setError(getPermissionErrorMessage(err));
-        setState("idle");
+
         cleanupStreams();
-        restoreOriginals();
+
+        setState("idle");
       }
     },
-    [restoreOriginals, stopRecording, startRecording, cleanupStreams]
+    [cleanupStreams, startRecording]
   );
 
   const cancelRecording = useCallback(() => {
-    if (
-      screenRecorderRef.current &&
-      screenRecorderRef.current.state !== "inactive"
-    ) {
-      screenRecorderRef.current.stop();
-    }
-
-    if (
-      cameraRecorderRef.current &&
-      cameraRecorderRef.current.state !== "inactive"
-    ) {
-      cameraRecorderRef.current.stop();
-    }
+    stopRecording();
 
     cleanupStreams();
 
-    screenChunksRef.current = [];
-    cameraChunksRef.current = [];
-
     setRecordingTime(0);
+
     setState("idle");
+
     setCameraConfig(null);
-    restoreOriginals();
-  }, [cleanupStreams, restoreOriginals]);
+  }, [cleanupStreams, stopRecording]);
 
   return {
     state,

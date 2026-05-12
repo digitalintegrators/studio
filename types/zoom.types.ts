@@ -8,18 +8,22 @@ export interface ZoomFragment {
     speed: number;
     focusX: number;
     focusY: number;
+
     movementEnabled?: boolean;
     movementEndX?: number;
     movementEndY?: number;
     movementStartOffset?: number;
     movementEndOffset?: number;
+
     enable3D?: boolean;
     perspective3DIntensity?: number;
     perspective3DAngleX?: number;
     perspective3DAngleY?: number;
+
+    cinematicMode?: "smooth" | "push" | "dramatic" | "subtle";
 }
 
-export interface ZoomState {
+export interface ZoomTimelineState {
     fragments: ZoomFragment[];
     selectedFragmentId: string | null;
 }
@@ -36,18 +40,8 @@ export interface ZoomFragmentEditorProps {
     onUpdate: (updates: Partial<ZoomFragment>) => void;
 }
 
-// Smoother easing for professional zoom feel (quart curves)
-export function easeOutQuart(t: number): number {
-    return 1 - Math.pow(1 - t, 4);
-}
-
-export function easeInOutQuart(t: number): number {
-    return t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2;
-}
-
-// Calculate 3-phase zoom state based on current time within fragment
 export interface ZoomPhaseState {
-    phase: 'entry' | 'hold' | 'exit';
+    phase: "entry" | "hold" | "exit";
     scale: number;
     focusX: number;
     focusY: number;
@@ -57,81 +51,147 @@ export interface ZoomPhaseState {
     perspective: number;
 }
 
+export interface ZoomStateCanvas {
+    scale: number;
+    focusX: number;
+    focusY: number;
+}
+
+const DEFAULT_ZOOM_LEVEL = 2.2;
+const DEFAULT_ZOOM_SPEED = 6;
+
+export const ZOOM_EASING = "cubic-bezier(0.16, 1, 0.3, 1)";
+
+export function easeOutQuart(t: number): number {
+    return 1 - Math.pow(1 - t, 4);
+}
+
+export function easeInOutQuart(t: number): number {
+    return t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2;
+}
+
+export function easeOutExpo(t: number): number {
+    return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+}
+
+export function easeInOutCinematic(t: number): number {
+    if (t <= 0) return 0;
+    if (t >= 1) return 1;
+
+    return t < 0.5
+        ? Math.pow(2, 20 * t - 10) / 2
+        : (2 - Math.pow(2, -20 * t + 10)) / 2;
+}
+
+export function zoomLevelToFactor(level: number): number {
+    const minZoom = 1.05;
+    const maxZoom = 4.5;
+    const normalized = Math.max(0, Math.min(1, (level - 1) / 9));
+
+    return minZoom + (maxZoom - minZoom) * normalized;
+}
+
+export function speedToTransitionMs(speed: number): number {
+    const minMs = 180;
+    const maxMs = 1800;
+    const normalized = Math.max(0, Math.min(1, (speed - 1) / 9));
+
+    return Math.round(maxMs - (maxMs - minMs) * normalized);
+}
+
 export function calculateZoomPhaseState(
     fragment: ZoomFragment,
     currentTime: number,
     forExport: boolean = false
 ): ZoomPhaseState {
-    const totalDuration = fragment.endTime - fragment.startTime;
+    const totalDuration = Math.max(0.01, fragment.endTime - fragment.startTime);
     const elapsed = currentTime - fragment.startTime;
     const normalizedTime = Math.max(0, Math.min(1, elapsed / totalDuration));
 
     const targetScale = zoomLevelToFactor(fragment.zoomLevel);
-    const enable3D = fragment.enable3D ?? false;
+    const transitionSeconds = Math.min(
+        speedToTransitionMs(fragment.speed) / 1000,
+        totalDuration / 2
+    );
 
-    const transitionSeconds = speedToTransitionMs(fragment.speed) / 1000;
     const entryEndTime = fragment.startTime + transitionSeconds;
     const exitStartTime = fragment.endTime - transitionSeconds;
     const holdDuration = Math.max(0, exitStartTime - entryEndTime);
 
-    let rotateX = 0;
-    let rotateY = 0;
-    let perspective = 0;
-    let scale = forExport ? 1 : targetScale;
-    let focusX = fragment.focusX;
-    let focusY = fragment.focusY;
-    let phase: 'entry' | 'hold' | 'exit' = 'hold';
-    let progress = normalizedTime;
-
     const movementEndX = fragment.movementEndX ?? fragment.focusX;
     const movementEndY = fragment.movementEndY ?? fragment.focusY;
 
-    // Determine phase and calculate ZOOM values (independent of 3D)
+    let phase: "entry" | "hold" | "exit" = "hold";
+    let progress = normalizedTime;
+    let scale = forExport ? 1 : targetScale;
+    let focusX = fragment.focusX;
+    let focusY = fragment.focusY;
+    let rotateX = 0;
+    let rotateY = 0;
+    let perspective = 0;
+
+    const cinematicMode = fragment.cinematicMode ?? "smooth";
+
+    const entryEase =
+        cinematicMode === "dramatic"
+            ? easeOutExpo
+            : cinematicMode === "push"
+              ? easeInOutCinematic
+              : easeOutQuart;
+
+    const exitEase =
+        cinematicMode === "dramatic"
+            ? easeInOutCinematic
+            : easeOutQuart;
+
     if (currentTime < entryEndTime && transitionSeconds > 0) {
-        // ENTRY PHASE: Zoom in
-        phase = 'entry';
-        const entryProgress = (currentTime - fragment.startTime) / transitionSeconds;
-        progress = Math.max(0, Math.min(1, entryProgress));
-        const easedProgress = easeOutQuart(progress);
+        phase = "entry";
 
-        if (forExport) {
-            scale = 1 + (targetScale - 1) * easedProgress;
-        }
+        const rawProgress = (currentTime - fragment.startTime) / transitionSeconds;
+        progress = Math.max(0, Math.min(1, rawProgress));
 
+        const easedProgress = entryEase(progress);
+        scale = 1 + (targetScale - 1) * easedProgress;
     } else if (currentTime >= exitStartTime && transitionSeconds > 0) {
-        // EXIT PHASE: Zoom out
-        phase = 'exit';
-        const exitProgress = (currentTime - exitStartTime) / transitionSeconds;
-        progress = Math.max(0, Math.min(1, exitProgress));
-        const easedProgress = easeOutQuart(progress);
+        phase = "exit";
 
-        if (forExport) {
-            scale = targetScale - (targetScale - 1) * easedProgress;
-        }
+        const rawProgress = (currentTime - exitStartTime) / transitionSeconds;
+        progress = Math.max(0, Math.min(1, rawProgress));
+
+        const easedProgress = exitEase(progress);
+        scale = targetScale - (targetScale - 1) * easedProgress;
 
         if (fragment.movementEnabled) {
             focusX = movementEndX;
             focusY = movementEndY;
         }
-
     } else {
-        phase = 'hold';
-
-        if (forExport) {
-            scale = targetScale;
-        }
+        phase = "hold";
+        scale = targetScale;
 
         if (fragment.movementEnabled && holdDuration > 0) {
             const movementStartOffset = fragment.movementStartOffset ?? 0;
             const movementEndOffset = fragment.movementEndOffset ?? holdDuration;
 
-            const movementStartTime = entryEndTime + Math.max(0, Math.min(movementStartOffset, holdDuration));
-            const movementEndTime = entryEndTime + Math.max(movementStartOffset, Math.min(movementEndOffset, holdDuration));
+            const movementStartTime =
+                entryEndTime + Math.max(0, Math.min(movementStartOffset, holdDuration));
+
+            const movementEndTime =
+                entryEndTime +
+                Math.max(movementStartOffset, Math.min(movementEndOffset, holdDuration));
+
             const movementDuration = movementEndTime - movementStartTime;
 
-            if (currentTime >= movementStartTime && currentTime <= movementEndTime && movementDuration > 0) {
-                const movementProgress = (currentTime - movementStartTime) / movementDuration;
+            if (
+                currentTime >= movementStartTime &&
+                currentTime <= movementEndTime &&
+                movementDuration > 0
+            ) {
+                const movementProgress =
+                    (currentTime - movementStartTime) / movementDuration;
+
                 const easedProgress = easeInOutQuart(Math.min(1, movementProgress));
+
                 focusX = fragment.focusX + (movementEndX - fragment.focusX) * easedProgress;
                 focusY = fragment.focusY + (movementEndY - fragment.focusY) * easedProgress;
                 progress = movementProgress;
@@ -143,32 +203,29 @@ export function calculateZoomPhaseState(
         }
     }
 
-    // 3D EFFECT: Completely separate from zoom animation
-    if (enable3D) {
-        const intensity = (fragment.perspective3DIntensity ?? 50) / 100; 
+    if (fragment.enable3D) {
+        const intensity = Math.max(
+            0,
+            Math.min(1, (fragment.perspective3DIntensity ?? 45) / 100)
+        );
 
         const baseAngleX = fragment.perspective3DAngleX ?? 0;
         const baseAngleY = fragment.perspective3DAngleY ?? 0;
 
-        let effect3DOpacity = 0;
+        let effect3DOpacity = 1;
 
-        if (phase === 'entry') {
-            const entryProgress = (currentTime - fragment.startTime) / transitionSeconds;
-            effect3DOpacity = Math.min(1, entryProgress * 1.2);
-        } else if (phase === 'exit') {
-            const exitProgress = (currentTime - exitStartTime) / transitionSeconds;
-            effect3DOpacity = Math.max(0, 1 - exitProgress * 1.8);
-        } else {
-            effect3DOpacity = 1;
+        if (phase === "entry") {
+            effect3DOpacity = easeOutQuart(progress);
+        } else if (phase === "exit") {
+            effect3DOpacity = 1 - easeOutQuart(progress);
         }
 
-        // Apply 3D with smooth easing
-        const smoothOpacity = easeInOutQuart(effect3DOpacity);
-        perspective = 500;
+        perspective = 520;
 
-        const maxRotation = 32 * intensity;
-        rotateX = (baseAngleX / 45) * maxRotation * smoothOpacity;
-        rotateY = (baseAngleY / 45) * maxRotation * smoothOpacity;
+        const maxRotation = 22 * intensity;
+
+        rotateX = (baseAngleX / 45) * maxRotation * effect3DOpacity;
+        rotateY = (baseAngleY / 45) * maxRotation * effect3DOpacity;
     }
 
     return {
@@ -183,29 +240,13 @@ export function calculateZoomPhaseState(
     };
 }
 
-// Calculate available hold time for camera movement
 export function calculateHoldDuration(fragment: ZoomFragment): number {
     const totalDuration = fragment.endTime - fragment.startTime;
     const transitionSeconds = speedToTransitionMs(fragment.speed) / 1000;
+
     return Math.max(0, totalDuration - 2 * transitionSeconds);
 }
 
-export interface ZoomStateCanvas {
-    scale: number;
-    focusX: number;
-    focusY: number;
-}
-
-export interface ZoomState {
-    scale: number;
-    focusX: number;
-    focusY: number;
-}
-
-const DEFAULT_ZOOM_LEVEL = 1.5;
-const DEFAULT_ZOOM_SPEED = 5;
-
-// Helper para crear un nuevo fragmento con valores por defecto
 export function createZoomFragment(
     startTime: number,
     endTime: number
@@ -219,55 +260,72 @@ export function createZoomFragment(
         focusX: 50,
         focusY: 50,
         movementEnabled: false,
+        movementEndX: 50,
+        movementEndY: 50,
+        movementStartOffset: 0,
+        movementEndOffset: Math.max(0, endTime - startTime),
+        enable3D: false,
+        perspective3DIntensity: 35,
+        perspective3DAngleX: 0,
+        perspective3DAngleY: 0,
+        cinematicMode: "smooth",
     };
 }
 
-// Helper para generar fragmentos por defecto cuando carga un video
 export function generateDefaultZoomFragments(
     videoDuration: number
 ): ZoomFragment[] {
     if (videoDuration <= 0) return [];
 
-    const fragmentDuration = 2;
-    const spacing = videoDuration / 3;
-
+    const fragmentDuration = Math.min(2.4, Math.max(1.4, videoDuration * 0.18));
     const fragments: ZoomFragment[] = [];
 
-    const start1 = Math.max(0, spacing * 0.5);
-    fragments.push(createZoomFragment(
-        start1,
-        Math.min(start1 + fragmentDuration, videoDuration)
-    ));
+    if (videoDuration >= 4) {
+        const start1 = Math.max(0, videoDuration * 0.18);
 
-    const start2 = Math.max(0, spacing * 2);
-    fragments.push(createZoomFragment(
-        start2,
-        Math.min(start2 + fragmentDuration, videoDuration)
-    ));
+        fragments.push({
+            ...createZoomFragment(
+                start1,
+                Math.min(start1 + fragmentDuration, videoDuration)
+            ),
+            zoomLevel: 2.1,
+            speed: 6,
+            focusX: 50,
+            focusY: 45,
+            movementEnabled: true,
+            movementEndX: 54,
+            movementEndY: 48,
+            cinematicMode: "smooth",
+        });
+    }
+
+    if (videoDuration >= 8) {
+        const start2 = Math.max(0, videoDuration * 0.58);
+
+        fragments.push({
+            ...createZoomFragment(
+                start2,
+                Math.min(start2 + fragmentDuration, videoDuration)
+            ),
+            zoomLevel: 2.6,
+            speed: 7,
+            focusX: 45,
+            focusY: 50,
+            movementEnabled: true,
+            movementEndX: 56,
+            movementEndY: 50,
+            cinematicMode: "push",
+        });
+    }
 
     return fragments;
 }
 
-// Convertir zoomLevel (1-10) a factor de zoom real
-export function zoomLevelToFactor(level: number): number {
-    const minZoom = 1.2;
-    const maxZoom = 4.0;
-    const normalized = (level - 1) / 9;
-    return minZoom + (maxZoom - minZoom) * normalized;
-}
-
-// Convertir speed (1-10) a duración de transición en milisegundos
-export function speedToTransitionMs(speed: number): number {
-    const minMs = 150;
-    const maxMs = 2000;
-    const normalized = (speed - 1) / 9;
-    return Math.round(maxMs - (maxMs - minMs) * normalized);
-}
-
-export const ZOOM_EASING = 'cubic-bezier(0.4, 0, 0.2, 1)';
-
 export function formatZoomTime(seconds: number): string {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+
+    return `${mins.toString().padStart(2, "0")}:${secs
+        .toString()
+        .padStart(2, "0")}`;
 }
