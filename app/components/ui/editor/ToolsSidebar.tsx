@@ -327,8 +327,11 @@ export function ToolsSidebar({
                                 label={t("tools.cursor")}
                                 isActive={activeTool === "cursor"}
                                 onClick={() => onToolChange("cursor")}
-                                badge={!isCursorEnabled ? t("tools.soon") : undefined}
-                                disabled={!isCursorEnabled}
+                                popover={{
+                                    title: "Cursor premium",
+                                    description: "Personaliza el cursor, efectos de clic, spotlight y enfoque visual para tus grabaciones.",
+                                    videoSrc: "/videos/preview-cursor.mp4"
+                                }}
                             />
                         </>
                     )}

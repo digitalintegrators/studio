@@ -699,7 +699,7 @@ export function getCursorSvgDataUrl(
 ): string | null {
     if (style === "none") return null;
 
-    const svgStrings: Record<CursorStyle, Record<CursorState, string>> = {
+    const svgStrings: Partial<Record<CursorStyle, Record<CursorState, string>>> = {
         none: {} as Record<CursorState, string>,
         mac: {
             default: `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none"><path d="M5.5 3.21V20.8c0 .45.54.67.85.35l4.86-4.86a.5.5 0 01.35-.15h6.87c.48 0 .73-.58.39-.92L5.84 2.86a.5.5 0 00-.34-.15c-.28 0-.5.22-.5.5z" fill="#FFFFFF" stroke="${color}" stroke-width="1.5"/></svg>`,
@@ -742,7 +742,7 @@ export function getCursorSvgDataUrl(
         },
     };
 
-    const styleSvgs = svgStrings[style];
+    const styleSvgs = svgStrings[style] ?? svgStrings.mac;
     if (!styleSvgs) return null;
 
     const svg = styleSvgs[state];
