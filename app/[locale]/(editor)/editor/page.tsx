@@ -927,6 +927,7 @@ export default function Editor() {
                 masterVolume,
                 cameraConfig,
                 videoTransform,
+                cursorConfig,
                 imageTransform,
                 apply3DToBackground,
                 imageMaskConfig,
@@ -944,7 +945,7 @@ export default function Editor() {
         aspectRatio, customDimensions, cropArea, trimRange,
         zoomFragments, mockupId, mockupConfig, canvasElements,
         audioTracks, muteOriginalAudio, masterVolume, cameraConfig,
-        videoTransform, imageTransform, apply3DToBackground, imageMaskConfig, videoMaskConfig,
+        videoTransform, cursorConfig, imageTransform, apply3DToBackground, imageMaskConfig, videoMaskConfig,
         setEditorState
     ]);
 

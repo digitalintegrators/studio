@@ -290,7 +290,7 @@ export function ControlPanel({
                 )}
 
                 {activeTool === "cursor" && (
-                    <Suspense>
+                    <Suspense fallback={null}>
                         <CursorMenu
                             cursorConfig={cursorConfig}
                             onCursorConfigChange={onCursorConfigChange || (() => { })}
