@@ -1,7 +1,14 @@
 import { CropArea } from "./editor.types";
 import type { VideoTrackClip } from "./video-track.types";
 
-export type ExportQuality = "4k" | "2k" | "1080p" | "720p" | "480p" | "gif" | "webm-alpha";
+export type ExportQuality =
+    | "4k"
+    | "2k"
+    | "1080p"
+    | "720p"
+    | "480p"
+    | "gif"
+    | "webm-alpha";
 
 export interface TrimSettings {
     start: number;
@@ -22,6 +29,8 @@ export interface ExportSettings {
         duration: number;
         volume: number;
         loop: boolean;
+        fadeIn?: number;
+        fadeOut?: number;
     }>;
     masterVolume?: number;
     videoBlob?: Blob;
@@ -31,7 +40,13 @@ export interface ExportSettings {
 }
 
 export interface ExportProgress {
-    status: "idle" | "preparing" | "encoding" | "finalizing" | "complete" | "error";
+    status:
+        | "idle"
+        | "preparing"
+        | "encoding"
+        | "finalizing"
+        | "complete"
+        | "error";
     progress: number;
     message: string;
 }
@@ -62,6 +77,7 @@ export interface VideoCropperModalProps {
     onCropApply: (crop: CropArea) => void;
     initialCrop?: CropArea;
 }
+
 export const CROP_ASPECT_RATIOS = [
     { label: "Libre", value: null },
     { label: "16:9", value: 16 / 9 },
@@ -79,30 +95,9 @@ export interface LibraryVideo {
     duration: number;
     width: number;
     height: number;
-    aspectRatio: string;
-    uploadedAt: number;
     thumbnailUrl?: string;
+    createdAt: number;
+    updatedAt?: number;
     hasAudio?: boolean;
     originalHasAudio?: boolean;
-}
-
-export interface LibraryVideoInfo {
-    id: string;
-    fileName: string;
-    fileSize: number;
-    duration: number;
-    width: number;
-    height: number;
-    aspectRatio: string;
-    uploadedAt: number;
-    thumbnailUrl?: string;
-    hasAudio?: boolean;
-    originalHasAudio?: boolean;
-}
-
-export interface ExtendedVideoForDetection extends HTMLVideoElement {
-    audioTracks?: { length: number };
-    mozHasAudio?: boolean;
-    captureStream?: () => MediaStream;
-    mozCaptureStream?: () => MediaStream;
 }

@@ -29,7 +29,6 @@ import CursorMenu from "./CursorMenu";
 import { DEFAULT_CURSOR_CONFIG } from "@/types/cursor.types";
 import { CameraMenu } from "./CameraMenu";
 
-// Lazy loads (se mantienen igual)
 const ImageRecentBackgroundGrid = lazy(() => import("../ImageRecentBackgroundGrid").then(mod => ({ default: mod.ImageRecentBackgroundGrid })));
 const BackgroundColorEditor = lazy(() => import("../BackgroundColorEditor").then(mod => ({ default: mod.BackgroundColorEditor })));
 const ZoomFragmentEditor = lazy(() => import("./ZoomFragmentEditor").then(mod => ({ default: mod.ZoomFragmentEditor })));
@@ -71,7 +70,6 @@ export function ControlPanel({
     onTogglePanel,
     elementsTextTabTrigger = 0,
     isOpen = true,
-    // Zoom props
     zoomFragments = [],
     selectedZoomFragment,
     onSelectZoomFragment,
@@ -83,31 +81,27 @@ export function ControlPanel({
     currentTime = 0,
     getThumbnailForTime,
     videoDimensions,
-    // Mockup props
     mockupId,
     mockupConfig,
     onMockupChange,
     onMockupConfigChange,
-    // Canvas elements props
     onAddCanvasElement,
     selectedCanvasElement,
     onUpdateCanvasElement,
     onDeleteCanvasElement,
     onBringToFront,
     onSendToBack,
-    // Audio props
     uploadedAudios = [],
     audioTracks = [],
     onAudioUpload,
     onUpdateAudioTrack,
     onDeleteAudioTrack,
+    onExtendProjectToAudioDuration,
     videoDuration = 0,
-    // Cursor props
     cursorConfig = DEFAULT_CURSOR_CONFIG,
     cursorData,
     isRecordedVideo = false,
     onCursorConfigChange,
-    // Videos library props
     onAddVideoToTrack,
     onRemoveVideoFromTrack,
     onVideoUploadToLibrary,
@@ -116,11 +110,9 @@ export function ControlPanel({
     videosLibraryRefresh,
     isVideoUploading = false,
     onVideoAudioToggle,
-    // Camera overlay props
     cameraUrl = null,
     cameraConfig = null,
     onCameraConfigChange,
-    // History/Image projects props
     imageProjects = [],
     currentImageProjectId = null,
     isLoadingProjects = false,
@@ -129,18 +121,12 @@ export function ControlPanel({
     onDeleteImageProject,
     onUploadImageToHistory,
 }: ExtendedControlPanelProps) {
-
     const t = useTranslations("controlPanel");
 
     return (
         <div className="relative w-full sm:w-[320px] h-screen bg-[#141417] border-r border-white/10 flex flex-col shrink-0" role="complementary" aria-label="Control panel">
             <header className="flex items-center justify-between h-13 p-2 border-b border-white/10 shrink-0" role="banner">
-                <Link
-                    href="/"
-                    onClick={() => { window.location.href = "/"; }}
-                    className="flex items-center gap-2 group"
-                    aria-label="OpenVid home"
-                >
+                <Link href="/" onClick={() => { window.location.href = "/"; }} className="flex items-center gap-2 group" aria-label="OpenVid home">
                     <Image src="/svg/logo-openvid.svg" alt="" width={30} height={30} />
                     <Image src="/svg/openvid.svg" alt="OpenVid" width={70} height={50} />
                 </Link>
@@ -153,10 +139,7 @@ export function ControlPanel({
                         whileTap={{ scale: 0.9 }}
                         aria-label={t("header.close")}
                     >
-                        <motion.div
-                            animate={{ rotate: isOpen ? 0 : 180 }}
-                            transition={{ duration: 0.3, ease: "easeInOut" }}
-                        >
+                        <motion.div animate={{ rotate: isOpen ? 0 : 180 }} transition={{ duration: 0.3, ease: "easeInOut" }}>
                             <Icon icon="lucide:sidebar-close" width="20" aria-hidden="true" />
                         </motion.div>
                     </motion.button>
@@ -172,21 +155,9 @@ export function ControlPanel({
                                 <span>{t("screenshot.background")}</span>
                             </div>
                             <div className="flex bg-[#09090B] rounded-lg p-1 text-xs font-medium">
-                                <TabButton
-                                    label={t("screenshot.tabs.wallpaper")}
-                                    isActive={backgroundTab === "wallpaper"}
-                                    onClick={() => onBackgroundTabChange("wallpaper")}
-                                />
-                                <TabButton
-                                    label={t("screenshot.tabs.color")}
-                                    isActive={backgroundTab === "color"}
-                                    onClick={() => onBackgroundTabChange("color")}
-                                />
-                                <TabButton
-                                    label={t("screenshot.tabs.image")}
-                                    isActive={backgroundTab === "image"}
-                                    onClick={() => onBackgroundTabChange("image")}
-                                />
+                                <TabButton label={t("screenshot.tabs.wallpaper")} isActive={backgroundTab === "wallpaper"} onClick={() => onBackgroundTabChange("wallpaper")} />
+                                <TabButton label={t("screenshot.tabs.color")} isActive={backgroundTab === "color"} onClick={() => onBackgroundTabChange("color")} />
+                                <TabButton label={t("screenshot.tabs.image")} isActive={backgroundTab === "image"} onClick={() => onBackgroundTabChange("image")} />
                             </div>
                         </div>
 
@@ -222,7 +193,7 @@ export function ControlPanel({
                             {backgroundTab === "image" && (
                                 <Suspense fallback={<ImageBackgroundSkeleton />}>
                                     <ImageRecentBackgroundGrid
-                                        images={uploadedImages?.filter(url => typeof url === 'string' && url.trim() !== "") || []}
+                                        images={uploadedImages?.filter(url => typeof url === "string" && url.trim() !== "") || []}
                                         selectedUrl={selectedImageUrl}
                                         onSelect={onImageSelect}
                                         onRemove={onImageRemove}
@@ -237,38 +208,10 @@ export function ControlPanel({
                                 </Suspense>
                             )}
 
-                            <SliderControl
-                                icon="mdi:blur"
-                                label={t("screenshot.sliders.blur")}
-                                value={backgroundBlur}
-                                min={0}
-                                max={20}
-                                onChange={onBackgroundBlurChange}
-                            />
-                            <SliderControl
-                                icon="mdi:arrow-expand-all"
-                                label={t("screenshot.sliders.padding")}
-                                value={padding}
-                                min={0}
-                                max={20}
-                                onChange={onPaddingChange}
-                            />
-                            <SliderControl
-                                icon="mdi:border-radius"
-                                label={t("screenshot.sliders.rounded")}
-                                value={roundedCorners}
-                                min={0}
-                                max={20}
-                                onChange={onRoundedCornersChange}
-                            />
-                            <SliderControl
-                                icon="material-symbols:shadow"
-                                label={t("screenshot.sliders.shadows")}
-                                value={shadows}
-                                min={0}
-                                max={20}
-                                onChange={onShadowsChange}
-                            />
+                            <SliderControl icon="mdi:blur" label={t("screenshot.sliders.blur")} value={backgroundBlur} min={0} max={20} onChange={onBackgroundBlurChange} />
+                            <SliderControl icon="mdi:arrow-expand-all" label={t("screenshot.sliders.padding")} value={padding} min={0} max={20} onChange={onPaddingChange} />
+                            <SliderControl icon="mdi:border-radius" label={t("screenshot.sliders.rounded")} value={roundedCorners} min={0} max={20} onChange={onRoundedCornersChange} />
+                            <SliderControl icon="material-symbols:shadow" label={t("screenshot.sliders.shadows")} value={shadows} min={0} max={20} onChange={onShadowsChange} />
                         </div>
                     </>
                 )}
@@ -317,6 +260,7 @@ export function ControlPanel({
                             onAudioUpload={onAudioUpload || (() => { })}
                             onUpdateAudioTrack={onUpdateAudioTrack || (() => { })}
                             onDeleteAudioTrack={onDeleteAudioTrack || (() => { })}
+                            onExtendProjectToAudioDuration={onExtendProjectToAudioDuration}
                         />
                     </Suspense>
                 )}
@@ -339,11 +283,7 @@ export function ControlPanel({
                             </Suspense>
                         ) : (
                             <Suspense fallback={<ZoomGlobalConfigSkeleton />}>
-                                <ZoomGlobalConfig
-                                    fragments={zoomFragments}
-                                    onSelectFragment={(id) => onSelectZoomFragment?.(id)}
-                                    onAddFragment={() => onAddZoomFragment?.()}
-                                />
+                                <ZoomGlobalConfig fragments={zoomFragments} onSelectFragment={(id) => onSelectZoomFragment?.(id)} onAddFragment={() => onAddZoomFragment?.()} />
                             </Suspense>
                         )}
                     </>
@@ -361,11 +301,7 @@ export function ControlPanel({
                 )}
 
                 {activeTool === "camera" && (
-                    <CameraMenu
-                        cameraUrl={cameraUrl}
-                        cameraConfig={cameraConfig}
-                        onCameraConfigChange={onCameraConfigChange || (() => { })}
-                    />
+                    <CameraMenu cameraUrl={cameraUrl} cameraConfig={cameraConfig} onCameraConfigChange={onCameraConfigChange || (() => { })} />
                 )}
 
                 {activeTool === "history" && (

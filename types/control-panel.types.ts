@@ -10,82 +10,169 @@ import type { ImageProjectPreview } from "./image-project.types";
 
 export interface ControlPanelProps {
     activeTool: Tool;
+
     backgroundTab: BackgroundTab;
     selectedWallpaper: number;
     backgroundBlur: number;
     padding: number;
     roundedCorners: number;
     shadows: number;
+
     uploadedImages: string[];
     selectedImageUrl: string;
+
     backgroundColorConfig: BackgroundColorConfig | null;
+
     onBackgroundTabChange: (tab: BackgroundTab) => void;
     onWallpaperSelect: (index: number) => void;
     onBackgroundBlurChange: (value: number) => void;
     onPaddingChange: (value: number) => void;
     onRoundedCornersChange: (value: number) => void;
     onShadowsChange: (value: number) => void;
+
     onImageUpload: (file: File) => void;
     onImageSelect: (url: string) => void;
     onImageRemove: (url: string) => void;
+
     onBackgroundColorChange: (config: BackgroundColorConfig) => void;
+
+    // Zoom
     zoomFragments?: ZoomFragment[];
     selectedZoomFragment?: ZoomFragment | null;
+
     onSelectZoomFragment?: (fragmentId: string | null) => void;
     onAddZoomFragment?: () => void;
-    onUpdateZoomFragment?: (fragmentId: string, updates: Partial<ZoomFragment>) => void;
+    onUpdateZoomFragment?: (
+        fragmentId: string,
+        updates: Partial<ZoomFragment>
+    ) => void;
     onDeleteZoomFragment?: (fragmentId: string) => void;
+
     videoUrl?: string | null;
     videoThumbnail?: string | null;
     currentTime?: number;
+
     getThumbnailForTime?: (time: number) => VideoThumbnail | null;
-    videoDimensions?: { width: number; height: number } | null;
+
+    videoDimensions?: {
+        width: number;
+        height: number;
+    } | null;
+
+    // Mockup
     mockupId?: string;
     mockupConfig?: MockupConfig;
+
     onMockupChange?: (mockupId: string) => void;
-    onMockupConfigChange?: (config: Partial<MockupConfig>) => void;
+    onMockupConfigChange?: (
+        config: Partial<MockupConfig>
+    ) => void;
+
+    // Canvas elements
     onAddCanvasElement?: (element: CanvasElement) => void;
+
     selectedCanvasElement?: CanvasElement | null;
-    onUpdateCanvasElement?: (id: string, updates: Partial<CanvasElement>) => void;
-    onDeleteCanvasElement?: (id: string) => void;
+
+    onUpdateCanvasElement?: (
+        id: string,
+        updates: Partial<CanvasElement>
+    ) => void;
+
+    onDeleteCanvasElement?: (id: string | string[]) => void;
+
     onBringToFront?: (id: string) => void;
     onSendToBack?: (id: string) => void;
+
+    // Audio
     uploadedAudios?: UploadedAudio[];
     audioTracks?: AudioTrack[];
+
     muteOriginalAudio?: boolean;
     masterVolume?: number;
+
     onAudioUpload?: (file: File) => void;
     onAudioDelete?: (audioId: string) => void;
     onAddAudioTrack?: (audioId: string) => void;
-    onUpdateAudioTrack?: (trackId: string, updates: Partial<AudioTrack>) => void;
+
+    onUpdateAudioTrack?: (
+        trackId: string,
+        updates: Partial<AudioTrack>
+    ) => void;
+
     onDeleteAudioTrack?: (trackId: string) => void;
+
+    onExtendProjectToAudioDuration?: (
+        trackId: string
+    ) => void;
+
     onToggleMuteOriginalAudio?: () => void;
     onMasterVolumeChange?: (volume: number) => void;
+
     videoDuration?: number;
+
     // Cursor props
     cursorConfig?: CursorConfig;
     cursorData?: CursorRecordingData;
     isRecordedVideo?: boolean;
-    onCursorConfigChange?: (config: Partial<CursorConfig>) => void;
+
+    onCursorConfigChange?: (
+        config: Partial<CursorConfig>
+    ) => void;
+
     // Videos library props
-    onAddVideoToTrack?: (videoId: string, blob: Blob, duration: number) => void;
-    onRemoveVideoFromTrack?: (videoId: string) => void;
-    onVideoUploadToLibrary?: (file: File) => void;
-    onVideoDeleteFromTrack?: (videoId: string) => void;
+    onAddVideoToTrack?: (
+        videoId: string,
+        blob: Blob,
+        duration: number
+    ) => void;
+
+    onRemoveVideoFromTrack?: (
+        videoId: string
+    ) => void;
+
+    onVideoUploadToLibrary?: (
+        file: File
+    ) => void;
+
+    onVideoDeleteFromTrack?: (
+        videoId: string
+    ) => void;
+
     videosInTrackIds?: string[];
     videosLibraryRefresh?: number;
     isVideoUploading?: boolean;
-    onVideoAudioToggle?: (videoId: string, hasAudio: boolean) => void;
+
+    onVideoAudioToggle?: (
+        videoId: string,
+        hasAudio: boolean
+    ) => void;
+
     // Camera overlay props
     cameraUrl?: string | null;
     cameraConfig?: CameraConfig | null;
-    onCameraConfigChange?: (partial: Partial<CameraConfig>) => void;
+
+    onCameraConfigChange?: (
+        partial: Partial<CameraConfig>
+    ) => void;
+
     // History/Image projects props
     imageProjects?: ImageProjectPreview[];
     currentImageProjectId?: string | null;
     isLoadingProjects?: boolean;
-    onSelectImageProject?: (projectId: string) => void;
-    onAddImageToCanvas?: (projectId: string) => void;
-    onDeleteImageProject?: (projectId: string) => void;
-    onUploadImageToHistory?: (file: File) => void;
+
+    onSelectImageProject?: (
+        projectId: string
+    ) => void;
+
+    onAddImageToCanvas?: (
+        projectId: string
+    ) => void;
+
+    onDeleteImageProject?: (
+        projectId: string
+    ) => void;
+
+    onUploadImageToHistory?: (
+        file: File
+    ) => void;
 }

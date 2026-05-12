@@ -13,7 +13,7 @@ import {
   formatVideoDuration,
   getLibraryVideoInfoList,
 } from "@/lib/videos-library";
-import { LibraryVideoInfo } from "@/types";
+import type { LibraryVideoInfo } from "@/lib/videos-library";
 
 interface VideosMenuProps {
   onAddToTrack?: (videoId: string, blob: Blob, duration: number) => void;

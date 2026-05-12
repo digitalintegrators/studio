@@ -17,7 +17,9 @@ import { useUndoRedo } from "@/hooks/useUndoRedo";
 import { clearAllThumbnailCache } from "@/lib/thumbnail-cache";
 import { addVideoToLibrary, addVideoToLibraryWithMetadata, getLibraryVideoCount, getLibraryVideo, findExistingVideo } from "@/lib/videos-library";
 import { calculateTotalDuration, findNextClipPosition, getClipAtTime, type VideoTrackClip } from "@/types/video-track.types";
-import type { ExportQuality, Tool, BackgroundTab, VideoCanvasHandle, BackgroundColorConfig, AspectRatio, CropArea, ZoomFragment, AudioTrack, ImageExportFormat } from "@/types";
+import type { ExportQuality, Tool, BackgroundTab, VideoCanvasHandle, BackgroundColorConfig, AspectRatio, CropArea, ZoomFragment, ImageExportFormat } from "@/types";
+import type { AudioTrack } from "@/types/audio.types";
+import { MAX_AUDIO_TRACKS } from "@/types/audio.types";
 import type { TrimRange } from "@/types/timeline.types";
 import type { MockupConfig } from "@/types/mockup.types";
 import type { EditorState } from "@/types/editor-state.types";
@@ -1059,62 +1061,67 @@ export default function Editor() {
 
     // Audio handlers
     const handleAudioUpload = useCallback(async (file: File) => {
-        try {
-            const MAX_AUDIO_TRACKS = 5;
-            if (audioTracks.length >= MAX_AUDIO_TRACKS) {
-                alert(`Máximo ${MAX_AUDIO_TRACKS} pistas de audio permitidas.`);
-                return;
-            }
-
-            const url = URL.createObjectURL(file);
-
-            const audio = new Audio(url);
-            await new Promise<void>((resolve, reject) => {
-                audio.addEventListener('loadedmetadata', () => resolve());
-                audio.addEventListener('error', () => reject(new Error('Failed to load audio')));
-            });
-
-            const newAudio: import("@/types/audio.types").UploadedAudio = {
-                id: `audio-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-                name: file.name,
-                url,
-                duration: audio.duration,
-                fileSize: file.size,
-                mimeType: file.type,
-            };
-
-            setUploadedAudios(prev => [...prev, newAudio]);
-
-            const lastTrackEnd = audioTracks.reduce((max, track) =>
-                Math.max(max, track.startTime + track.duration), 0);
-
-            const trackId = `track-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-
-            if (audio.duration > videoDuration) {
-                setPendingAudioUpload({ audio: newAudio, trackId });
-                setAutoTrimModalOpen(true);
-            } else {
-                const newTrack: import("@/types/audio.types").AudioTrack = {
-                    id: trackId,
-                    audioId: newAudio.id,
-                    name: newAudio.name,
-                    startTime: lastTrackEnd,
-                    duration: newAudio.duration,
-                    volume: 1,
-                    loop: false,
-                };
-
-                setAudioTracks(prev => [...prev, newTrack]);
-
-                if (audioTracks.length === 0) {
-                    setMuteOriginalAudio(true);
-                }
-            }
-        } catch (error) {
-            console.error('Error uploading audio:', error);
-            alert('Error al subir el audio. Por favor intenta de nuevo.');
+    try {
+        if (audioTracks.length >= MAX_AUDIO_TRACKS) {
+            alert(`Máximo ${MAX_AUDIO_TRACKS} pistas de audio permitidas.`);
+            return;
         }
-    }, [audioTracks, videoDuration]);
+
+        const url = URL.createObjectURL(file);
+
+        const audio = new Audio(url);
+        await new Promise<void>((resolve, reject) => {
+            audio.addEventListener("loadedmetadata", () => resolve());
+            audio.addEventListener("error", () =>
+                reject(new Error("Failed to load audio"))
+            );
+        });
+
+        const newAudio: import("@/types/audio.types").UploadedAudio = {
+            id: `audio-${Date.now()}-${Math.random()
+                .toString(36)
+                .substring(2, 9)}`,
+            name: file.name,
+            url,
+            duration: audio.duration,
+            fileSize: file.size,
+            mimeType: file.type,
+        };
+
+        setUploadedAudios((prev) => [...prev, newAudio]);
+
+        const lastTrackEnd = audioTracks.reduce(
+            (max, track) => Math.max(max, track.startTime + track.duration),
+            0
+        );
+
+        const trackId = `track-${Date.now()}-${Math.random()
+            .toString(36)
+            .substring(2, 9)}`;
+
+        const newTrack: AudioTrack = {
+            id: trackId,
+            audioId: newAudio.id,
+            name: newAudio.name,
+            startTime: lastTrackEnd,
+            duration: newAudio.duration,
+            trimStart: 0,
+            volume: 1,
+            loop: false,
+            fadeIn: 0,
+            fadeOut: 0,
+        };
+
+        setAudioTracks((prev) => [...prev, newTrack]);
+
+        if (audioTracks.length === 0) {
+            setMuteOriginalAudio(true);
+        }
+    } catch (error) {
+        console.error("Error uploading audio:", error);
+        alert("Error al subir el audio. Por favor intenta de nuevo.");
+    }
+}, [audioTracks]);
 
     const handleAudioDelete = useCallback((audioId: string) => {
         setUploadedAudios(prev => {
@@ -1129,44 +1136,68 @@ export default function Editor() {
     }, []);
 
     const handleAddAudioTrack = useCallback((audioId: string) => {
-        const audio = uploadedAudios.find(a => a.id === audioId);
-        if (!audio) return;
+    const audio = uploadedAudios.find((a) => a.id === audioId);
+    if (!audio) return;
 
-        const MAX_AUDIO_TRACKS = 5;
-        if (audioTracks.length >= MAX_AUDIO_TRACKS) {
-            alert(`Máximo ${MAX_AUDIO_TRACKS} pistas de audio permitidas.`);
-            return;
-        }
+    if (audioTracks.length >= MAX_AUDIO_TRACKS) {
+        alert(`Máximo ${MAX_AUDIO_TRACKS} pistas de audio permitidas.`);
+        return;
+    }
 
-        if (audioTracks.some(track => track.audioId === audioId)) {
-            return;
-        }
+    if (audioTracks.some((track) => track.audioId === audioId)) {
+        return;
+    }
 
-        // Calculate startTime as end of last track to prevent overlapping
-        const lastTrackEnd = audioTracks.reduce((max, track) =>
-            Math.max(max, track.startTime + track.duration), 0);
+    const lastTrackEnd = audioTracks.reduce(
+        (max, track) => Math.max(max, track.startTime + track.duration),
+        0
+    );
 
-        const newTrack: import("@/types/audio.types").AudioTrack = {
-            id: `track-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-            audioId,
-            name: audio.name,
-            startTime: lastTrackEnd,
-            duration: audio.duration,
-            volume: 1,
-            loop: false,
-        };
+    const newTrack: AudioTrack = {
+        id: `track-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        audioId,
+        name: audio.name,
+        startTime: lastTrackEnd,
+        duration: audio.duration,
+        trimStart: 0,
+        volume: 1,
+        loop: false,
+        fadeIn: 0,
+        fadeOut: 0,
+    };
 
-        setAudioTracks(prev => [...prev, newTrack]);
-        if (audioTracks.length === 0) {
-            setMuteOriginalAudio(true);
-        }
-    }, [uploadedAudios, audioTracks]);
+    setAudioTracks((prev) => [...prev, newTrack]);
 
-    const handleUpdateAudioTrack = useCallback((trackId: string, updates: Partial<import("@/types/audio.types").AudioTrack>) => {
-        setAudioTracks(prev => prev.map(track =>
-            track.id === trackId ? { ...track, ...updates } : track
-        ));
-    }, []);
+    if (audioTracks.length === 0) {
+        setMuteOriginalAudio(true);
+    }
+}, [uploadedAudios, audioTracks]);
+
+    const handleUpdateAudioTrack = useCallback(
+        (trackId: string, updates: Partial<AudioTrack>) => {
+            setAudioTracks((prev) =>
+                prev.map((track) =>
+                    track.id === trackId ? { ...track, ...updates } : track
+                )
+            );
+        },
+        []
+    );
+
+    const handleExtendProjectToAudioDuration = useCallback((trackId: string) => {
+        const track = audioTracks.find((item) => item.id === trackId);
+
+        if (!track) return;
+
+        const requiredDuration = track.startTime + track.duration;
+        const nextDuration = Math.max(videoDuration, requiredDuration);
+
+        setVideoDuration(nextDuration);
+        setTrimRange((prev) => ({
+            start: prev.start,
+            end: Math.max(prev.end, nextDuration),
+        }));
+    }, [audioTracks, videoDuration]);
 
     const handleDeleteAudioTrack = useCallback((trackId: string) => {
         setAudioTracks(prev => {
@@ -1357,15 +1388,17 @@ export default function Editor() {
             trim: trimRange.end > trimRange.start ? { start: trimRange.start, end: trimRange.end } : undefined,
             muteOriginalAudio,
             videoHasAudioTrack: videoHasAudioTrack,
-            audioTracks: audioTracks.map(track => {
-                const audio = uploadedAudios.find(a => a.id === track.audioId);
+            audioTracks: audioTracks.map((track) => {
+                const audio = uploadedAudios.find((a) => a.id === track.audioId);
                 return {
-                    audioUrl: audio?.url || '',
+                    audioUrl: audio?.url || "",
                     startTime: track.startTime,
                     duration: track.duration,
                     trimStart: track.trimStart ?? 0,
                     volume: track.volume,
                     loop: track.loop,
+                    fadeIn: track.fadeIn ?? 0,
+                    fadeOut: track.fadeOut ?? 0,
                 };
             }),
             masterVolume,
@@ -2755,6 +2788,7 @@ export default function Editor() {
                                         onAddAudioTrack={handleAddAudioTrack}
                                         onUpdateAudioTrack={handleUpdateAudioTrack}
                                         onDeleteAudioTrack={handleDeleteAudioTrack}
+                                        onExtendProjectToAudioDuration={handleExtendProjectToAudioDuration}
                                         onToggleMuteOriginalAudio={handleToggleMuteOriginalAudio}
                                         onMasterVolumeChange={handleMasterVolumeChange}
                                         videoDuration={videoDuration}
@@ -3040,6 +3074,7 @@ export default function Editor() {
                 onAddAudioTrack={handleAddAudioTrack}
                 onUpdateAudioTrack={handleUpdateAudioTrack}
                 onDeleteAudioTrack={handleDeleteAudioTrack}
+                onExtendProjectToAudioDuration={handleExtendProjectToAudioDuration}
                 onToggleMuteOriginalAudio={handleToggleMuteOriginalAudio}
                 onMasterVolumeChange={handleMasterVolumeChange}
                 videoDuration={videoDuration}

@@ -29,6 +29,10 @@ async function getDB(): Promise<IDBDatabase> {
   });
 }
 
+function generateVideoId(): string {
+  return `vid_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+}
+
 export async function listRecordedVideos(): Promise<RecordingLibraryItem[]> {
   try {
     const db = await getDB();
@@ -77,9 +81,7 @@ export async function listRecordedVideos(): Promise<RecordingLibraryItem[]> {
 
             if (pending === 0) {
               db.close();
-              resolve(
-                items.sort((a, b) => b.timestamp - a.timestamp)
-              );
+              resolve(items.sort((a, b) => b.timestamp - a.timestamp));
             }
           };
 
@@ -88,9 +90,7 @@ export async function listRecordedVideos(): Promise<RecordingLibraryItem[]> {
 
             if (pending === 0) {
               db.close();
-              resolve(
-                items.sort((a, b) => b.timestamp - a.timestamp)
-              );
+              resolve(items.sort((a, b) => b.timestamp - a.timestamp));
             }
           };
         });
@@ -161,6 +161,89 @@ export async function deleteRecordedVideoById(videoId: string): Promise<void> {
     transaction.onerror = () => {
       db.close();
       reject(transaction.error);
+    };
+  });
+}
+
+export async function duplicateRecordedVideoById(
+  videoId: string
+): Promise<string> {
+  const db = await getDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(["videos"], "readwrite");
+    const store = transaction.objectStore("videos");
+
+    const getRequest = store.get(videoId);
+
+    getRequest.onsuccess = () => {
+      const original = getRequest.result;
+
+      if (!original?.blob) {
+        reject(new Error("No se encontró la grabación para duplicar."));
+        return;
+      }
+
+      const newVideoId = generateVideoId();
+
+      const duplicated = {
+        ...original,
+        videoId: newVideoId,
+        timestamp: Date.now(),
+        duplicatedFrom: videoId,
+      };
+
+      store.put(duplicated, newVideoId);
+      store.put(
+        {
+          videoId: newVideoId,
+          timestamp: duplicated.timestamp,
+        },
+        "currentVideo"
+      );
+
+      resolve(newVideoId);
+    };
+
+    getRequest.onerror = () => {
+      reject(getRequest.error);
+    };
+
+    transaction.oncomplete = () => {
+      db.close();
+    };
+
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error);
+    };
+  });
+}
+
+export async function getCurrentRecordedVideoId(): Promise<string | null> {
+  const db = await getDB();
+
+  return new Promise((resolve) => {
+    const transaction = db.transaction(["videos"], "readonly");
+    const store = transaction.objectStore("videos");
+    const request = store.get("currentVideo");
+
+    request.onsuccess = () => {
+      db.close();
+
+      const current = request.result;
+
+      if (!current) {
+        resolve(null);
+        return;
+      }
+
+      resolve(typeof current === "string" ? current : current.videoId ?? null);
+    };
+
+    request.onerror = () => {
+      db.close();
+      resolve(null);
     };
   });
 }

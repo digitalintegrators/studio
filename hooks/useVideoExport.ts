@@ -6,7 +6,11 @@ import type { VideoCanvasHandle } from "@/types";
 import type { ExportQuality, ExportSettings, ExportProgress } from "@/types";
 import type { VideoTrackClip } from "@/types/video-track.types";
 import { QUALITY_SETTINGS, DEFAULT_EXPORT_FPS } from "@/lib/constants";
-import { ensureVideoReady, waitForVideoFrame, downloadBlob } from "@/lib/video.utils";
+import {
+    ensureVideoReady,
+    waitForVideoFrame,
+    downloadBlob,
+} from "@/lib/video.utils";
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { toBlobURL } from "@ffmpeg/util";
 
@@ -16,21 +20,57 @@ interface CancellationToken {
     cancelled: boolean;
 }
 
-function getActiveClipAtTime(clips: VideoTrackClip[], timelineTime: number): { clip: VideoTrackClip; clipTime: number } | null {
+function getActiveClipAtTime(
+    clips: VideoTrackClip[],
+    timelineTime: number
+): { clip: VideoTrackClip; clipTime: number } | null {
     for (const clip of clips) {
         const clipDuration = clip.trimEnd - clip.trimStart;
         const clipEndTime = clip.startTime + clipDuration;
+
         if (timelineTime >= clip.startTime && timelineTime < clipEndTime) {
             const clipTime = clip.trimStart + (timelineTime - clip.startTime);
             return { clip, clipTime };
         }
     }
+
     return null;
+}
+
+function buildExternalAudioFilter(
+    inputIndex: number,
+    track: NonNullable<ExportSettings["audioTracks"]>[0],
+    masterVolume: number
+): string {
+    const trackVolume = Math.max(0, track.volume * masterVolume);
+    const delayMs = Math.max(0, Math.round(track.startTime * 1000));
+    const audioTrimStart = Math.max(0, track.trimStart ?? 0);
+    const trackDuration = Math.max(0.05, track.duration);
+    const audioTrimEnd = audioTrimStart + trackDuration;
+    const fadeIn = Math.max(0, Math.min(track.fadeIn ?? 0, trackDuration / 2));
+    const fadeOut = Math.max(0, Math.min(track.fadeOut ?? 0, trackDuration / 2));
+    const fadeOutStart = Math.max(0, trackDuration - fadeOut);
+
+    let chain = `[${inputIndex}:a]`;
+
+    chain += `atrim=${audioTrimStart}:${audioTrimEnd},asetpts=PTS-STARTPTS`;
+
+    if (fadeIn > 0) {
+        chain += `,afade=t=in:st=0:d=${fadeIn}`;
+    }
+
+    if (fadeOut > 0) {
+        chain += `,afade=t=out:st=${fadeOutStart}:d=${fadeOut}`;
+    }
+
+    chain += `,adelay=${delayMs}|${delayMs},volume=${trackVolume}[a${inputIndex}];`;
+
+    return chain;
 }
 
 export function useVideoExport(
     videoRef: RefObject<HTMLVideoElement | null>,
-    canvasRef: RefObject<VideoCanvasHandle | null>,
+    canvasRef: RefObject<VideoCanvasHandle | null>
 ) {
     const [exportProgress, setExportProgress] = useState<ExportProgress>({
         status: "idle",
@@ -51,180 +91,192 @@ export function useVideoExport(
         });
     }, []);
 
-    const exportVideo = useCallback(async (settings: ExportSettings): Promise<void> => {
-        if (isExportingRef.current) {
-            console.log("Export already in progress");
-            return;
-        }
-
-        cancellationRef.current = { cancelled: false };
-        isExportingRef.current = true;
-
-        const video = videoRef.current;
-        const canvasHandle = canvasRef.current;
-
-        if (!video || !canvasHandle) {
-            setExportProgress({
-                status: "error",
-                progress: 0,
-                message: "No hay video para exportar",
-            });
-            isExportingRef.current = false;
-            return;
-        }
-
-        if (!video.duration || video.duration === Infinity || isNaN(video.duration)) {
-            setExportProgress({
-                status: "error",
-                progress: 0,
-                message: "El video no está cargado correctamente",
-            });
-            isExportingRef.current = false;
-            return;
-        }
-
-        const exportCanvas = canvasHandle.getExportCanvas();
-        if (!exportCanvas) {
-            setExportProgress({
-                status: "error",
-                progress: 0,
-                message: "Error al obtener el canvas de exportación",
-            });
-            isExportingRef.current = false;
-            return;
-        }
-
-        const qualitySettings = QUALITY_SETTINGS[settings.quality];
-        const fps = settings.fps || qualitySettings.fps || DEFAULT_EXPORT_FPS;
-
-        try {
-            setExportProgress({
-                status: "preparing",
-                progress: 2,
-                message: "Preparando video...",
-            });
-
-            await ensureVideoReady(video);
-
-            if (cancellationRef.current.cancelled) {
-                throw new Error("Exportación cancelada");
+    const exportVideo = useCallback(
+        async (settings: ExportSettings): Promise<void> => {
+            if (isExportingRef.current) {
+                console.log("Export already in progress");
+                return;
             }
 
-            setExportProgress({
-                status: "preparing",
-                progress: 5,
-                message: "Configurando exportación...",
-            });
+            cancellationRef.current = { cancelled: false };
+            isExportingRef.current = true;
 
-            const originalWidth = exportCanvas.width;
-            const originalHeight = exportCanvas.height;
-            const originalAspectRatio = originalWidth / originalHeight;
-            const qualityAspectRatio = qualitySettings.width / qualitySettings.height;
+            const video = videoRef.current;
+            const canvasHandle = canvasRef.current;
 
-            let targetWidth: number;
-            let targetHeight: number;
-
-            if (Math.abs(originalAspectRatio - qualityAspectRatio) < 0.01) {
-                targetWidth = qualitySettings.width;
-                targetHeight = qualitySettings.height;
-            } else if (originalAspectRatio > qualityAspectRatio) {
-                targetWidth = qualitySettings.width;
-                targetHeight = Math.round(qualitySettings.width / originalAspectRatio);
-            } else {
-                targetHeight = qualitySettings.height;
-                targetWidth = Math.round(qualitySettings.height * originalAspectRatio);
-            }
-
-            targetWidth = Math.round(targetWidth / 2) * 2;
-            targetHeight = Math.round(targetHeight / 2) * 2;
-
-            exportCanvas.width = targetWidth;
-            exportCanvas.height = targetHeight;
-
-            const originalTime = video.currentTime;
-            const wasPlaying = !video.paused;
-            const originalMuted = video.muted;
-
-            video.muted = true;
-
-            const trimStart = settings.trim?.start ?? 0;
-            const trimEnd = settings.trim?.end ?? video.duration;
-            const exportDuration = trimEnd - trimStart;
-
-            if (settings.quality === "gif") {
-                await exportWithFFmpegGif(
-                    video,
-                    canvasHandle,
-                    exportCanvas,
-                    exportDuration,
-                    trimStart,
-                    fps,
-                    targetWidth,
-                    targetHeight,
-                    setExportProgress,
-                    cancellationRef.current
-                );
-            } else if (settings.quality === "webm-alpha" || settings.transparentBackground) {
-
-                await exportWithFFmpegWebM(
-                    video,
-                    canvasHandle,
-                    exportCanvas,
-                    exportDuration,
-                    trimStart,
-                    fps,
-                    targetWidth,
-                    targetHeight,
-                    setExportProgress,
-                    cancellationRef.current,
-                    settings
-                );
-
-            } else {
-                await exportWithMediabunnyAndAudio(
-                    video,
-                    canvasHandle,
-                    exportCanvas,
-                    exportDuration,
-                    trimStart,
-                    fps,
-                    qualitySettings.bitrate,
-                    qualitySettings.width,
-                    qualitySettings.height,
-                    setExportProgress,
-                    cancellationRef.current,
-                    settings
-                );
-            }
-
-            exportCanvas.width = originalWidth;
-            exportCanvas.height = originalHeight;
-            video.currentTime = originalTime;
-            video.muted = originalMuted;
-
-            if (wasPlaying) {
-                await video.play().catch(() => { });
-            }
-
-        } catch (error) {
-            if (cancellationRef.current.cancelled) {
-                setExportProgress({
-                    status: "idle",
-                    progress: 0,
-                    message: "",
-                });
-            } else {
-                console.error("Error durante la exportación:", error);
+            if (!video || !canvasHandle) {
                 setExportProgress({
                     status: "error",
                     progress: 0,
-                    message: error instanceof Error ? error.message : "Error durante la exportación",
+                    message: "No hay video para exportar",
                 });
+                isExportingRef.current = false;
+                return;
             }
-        } finally {
-            isExportingRef.current = false;
-        }
-    }, [videoRef, canvasRef]);
+
+            if (!video.duration || video.duration === Infinity || isNaN(video.duration)) {
+                setExportProgress({
+                    status: "error",
+                    progress: 0,
+                    message: "El video no está cargado correctamente",
+                });
+                isExportingRef.current = false;
+                return;
+            }
+
+            const exportCanvas = canvasHandle.getExportCanvas();
+
+            if (!exportCanvas) {
+                setExportProgress({
+                    status: "error",
+                    progress: 0,
+                    message: "Error al obtener el canvas de exportación",
+                });
+                isExportingRef.current = false;
+                return;
+            }
+
+            const qualitySettings = QUALITY_SETTINGS[settings.quality];
+            const fps = settings.fps || qualitySettings.fps || DEFAULT_EXPORT_FPS;
+
+            try {
+                setExportProgress({
+                    status: "preparing",
+                    progress: 2,
+                    message: "Preparando video...",
+                });
+
+                await ensureVideoReady(video);
+
+                if (cancellationRef.current.cancelled) {
+                    throw new Error("Exportación cancelada");
+                }
+
+                setExportProgress({
+                    status: "preparing",
+                    progress: 5,
+                    message: "Configurando exportación...",
+                });
+
+                const originalWidth = exportCanvas.width;
+                const originalHeight = exportCanvas.height;
+                const originalAspectRatio = originalWidth / originalHeight;
+                const qualityAspectRatio =
+                    qualitySettings.width / qualitySettings.height;
+
+                let targetWidth: number;
+                let targetHeight: number;
+
+                if (Math.abs(originalAspectRatio - qualityAspectRatio) < 0.01) {
+                    targetWidth = qualitySettings.width;
+                    targetHeight = qualitySettings.height;
+                } else if (originalAspectRatio > qualityAspectRatio) {
+                    targetWidth = qualitySettings.width;
+                    targetHeight = Math.round(
+                        qualitySettings.width / originalAspectRatio
+                    );
+                } else {
+                    targetHeight = qualitySettings.height;
+                    targetWidth = Math.round(
+                        qualitySettings.height * originalAspectRatio
+                    );
+                }
+
+                targetWidth = Math.round(targetWidth / 2) * 2;
+                targetHeight = Math.round(targetHeight / 2) * 2;
+
+                exportCanvas.width = targetWidth;
+                exportCanvas.height = targetHeight;
+
+                const originalTime = video.currentTime;
+                const wasPlaying = !video.paused;
+                const originalMuted = video.muted;
+
+                video.muted = true;
+
+                const trimStart = settings.trim?.start ?? 0;
+                const trimEnd = settings.trim?.end ?? video.duration;
+                const exportDuration = trimEnd - trimStart;
+
+                if (settings.quality === "gif") {
+                    await exportWithFFmpegGif(
+                        video,
+                        canvasHandle,
+                        exportCanvas,
+                        exportDuration,
+                        trimStart,
+                        fps,
+                        targetWidth,
+                        targetHeight,
+                        setExportProgress,
+                        cancellationRef.current
+                    );
+                } else if (
+                    settings.quality === "webm-alpha" ||
+                    settings.transparentBackground
+                ) {
+                    await exportWithFFmpegWebM(
+                        video,
+                        canvasHandle,
+                        exportCanvas,
+                        exportDuration,
+                        trimStart,
+                        fps,
+                        targetWidth,
+                        targetHeight,
+                        setExportProgress,
+                        cancellationRef.current,
+                        settings
+                    );
+                } else {
+                    await exportWithMediabunnyAndAudio(
+                        video,
+                        canvasHandle,
+                        exportCanvas,
+                        exportDuration,
+                        trimStart,
+                        fps,
+                        qualitySettings.bitrate,
+                        qualitySettings.width,
+                        qualitySettings.height,
+                        setExportProgress,
+                        cancellationRef.current,
+                        settings
+                    );
+                }
+
+                exportCanvas.width = originalWidth;
+                exportCanvas.height = originalHeight;
+                video.currentTime = originalTime;
+                video.muted = originalMuted;
+
+                if (wasPlaying) {
+                    await video.play().catch(() => {});
+                }
+            } catch (error) {
+                if (cancellationRef.current.cancelled) {
+                    setExportProgress({
+                        status: "idle",
+                        progress: 0,
+                        message: "",
+                    });
+                } else {
+                    console.error("Error durante la exportación:", error);
+                    setExportProgress({
+                        status: "error",
+                        progress: 0,
+                        message:
+                            error instanceof Error
+                                ? error.message
+                                : "Error durante la exportación",
+                    });
+                }
+            } finally {
+                isExportingRef.current = false;
+            }
+        },
+        [videoRef, canvasRef]
+    );
 
     const cancelExport = useCallback(() => {
         cancellationRef.current.cancelled = true;
@@ -255,21 +307,30 @@ async function exportWithFFmpegWebM(
     height: number,
     setProgress: (p: ExportProgress) => void,
     cancellation: CancellationToken,
-    _settings?: ExportSettings // Reserved for future audio support in WebM
+    _settings?: ExportSettings
 ): Promise<void> {
     const ffmpeg = new FFmpeg();
     const totalFrames = Math.ceil(duration * fps);
 
-    setProgress({ status: "preparing", progress: 3, message: "Cargando motor WebM..." });
+    setProgress({
+        status: "preparing",
+        progress: 3,
+        message: "Cargando motor WebM...",
+    });
 
     const ffmpegBase = `${window.location.origin}/ffmpeg`;
+
     await ffmpeg.load({
         coreURL: await toBlobURL(`${ffmpegBase}/ffmpeg-core.js`, "text/javascript"),
-        wasmURL: await toBlobURL(`${ffmpegBase}/ffmpeg-core.wasm`, "application/wasm"),
+        wasmURL: await toBlobURL(
+            `${ffmpegBase}/ffmpeg-core.wasm`,
+            "application/wasm"
+        ),
     });
 
     video.pause();
     video.currentTime = trimStart;
+
     await waitForVideoFrame(video);
 
     for (let i = 0; i < totalFrames; i++) {
@@ -278,14 +339,20 @@ async function exportWithFFmpegWebM(
         await canvasHandle.drawFrame();
 
         const nextI = i + 1;
+
         if (nextI < totalFrames) {
-            video.currentTime = Math.min(trimStart + nextI / fps, trimStart + duration - 0.001);
+            video.currentTime = Math.min(
+                trimStart + nextI / fps,
+                trimStart + duration - 0.001
+            );
         }
 
         const blob = await new Promise<Blob>((resolve, reject) =>
-            canvas.toBlob(b => b ? resolve(b) : reject(), "image/png")
+            canvas.toBlob((value) => (value ? resolve(value) : reject()), "image/png")
         );
+
         const data = new Uint8Array(await blob.arrayBuffer());
+
         await ffmpeg.writeFile(`frame${String(i).padStart(5, "0")}.png`, data);
 
         if (i % 10 === 0 || i === totalFrames - 1) {
@@ -304,25 +371,37 @@ async function exportWithFFmpegWebM(
     ffmpeg.on("progress", ({ progress }) => {
         if (progress > 0) {
             const encodingProgress = 70 + Math.round(progress * 20);
+
             setProgress({
                 status: "finalizing",
                 progress: Math.min(encodingProgress, 90),
-                message: `[Paso 2/2] Codificando VP8 con transparencia...`,
+                message: "[Paso 2/2] Codificando VP8 con transparencia...",
             });
         }
     });
 
-    setProgress({ status: "finalizing", progress: 70, message: "[Paso 2/2] Iniciando codificación VP8..." });
+    setProgress({
+        status: "finalizing",
+        progress: 70,
+        message: "[Paso 2/2] Iniciando codificación VP8...",
+    });
 
     try {
         await ffmpeg.exec([
-            "-f", "image2",
-            "-framerate", String(fps),
-            "-i", "frame%05d.png",
-            "-c:v", "libvpx",
-            "-auto-alt-ref", "0",
-            "-b:v", "1M",
-            "-vf", "format=yuva420p",
+            "-f",
+            "image2",
+            "-framerate",
+            String(fps),
+            "-i",
+            "frame%05d.png",
+            "-c:v",
+            "libvpx",
+            "-auto-alt-ref",
+            "0",
+            "-b:v",
+            "1M",
+            "-vf",
+            "format=yuva420p",
             "output.webm",
         ]);
     } finally {
@@ -330,19 +409,35 @@ async function exportWithFFmpegWebM(
             for (let i = 0; i < totalFrames; i++) {
                 await ffmpeg.deleteFile(`frame${String(i).padStart(5, "0")}.png`);
             }
-        } catch { /* ignorar errores de limpieza */ }
+        } catch {
+            // ignore cleanup errors
+        }
     }
 
-    setProgress({ status: "finalizing", progress: 94, message: "Preparando descarga..." });
+    setProgress({
+        status: "finalizing",
+        progress: 94,
+        message: "Preparando descarga...",
+    });
 
     const webmData = (await ffmpeg.readFile("output.webm")) as Uint8Array;
-    const webmBlob = new Blob([new Uint8Array(webmData)], { type: "video/webm" });
+    const webmBlob = new Blob([new Uint8Array(webmData)], {
+        type: "video/webm",
+    });
 
-    try { await ffmpeg.deleteFile("output.webm"); } catch { /* ignorar */ }
+    try {
+        await ffmpeg.deleteFile("output.webm");
+    } catch {
+        // ignore cleanup errors
+    }
 
     downloadBlob(webmBlob, `video-transparent-${width}x${height}.webm`);
 
-    setProgress({ status: "complete", progress: 100, message: "¡WebM con transparencia exportado!" });
+    setProgress({
+        status: "complete",
+        progress: 100,
+        message: "¡WebM con transparencia exportado!",
+    });
 }
 
 async function exportWithMediabunny(
@@ -380,7 +475,7 @@ async function exportWithMediabunny(
 
     const videoSource = new CanvasSource(canvas, {
         codec: "avc",
-        bitrate: bitrate,
+        bitrate,
     });
 
     output.addVideoTrack(videoSource, {
@@ -391,6 +486,7 @@ async function exportWithMediabunny(
 
     video.pause();
     video.currentTime = trimStart;
+
     await waitForVideoFrame(video);
 
     for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
@@ -404,12 +500,17 @@ async function exportWithMediabunny(
         await videoSource.add(outputTime, frameDuration);
 
         const nextIndex = frameIndex + 1;
+
         if (nextIndex < totalFrames) {
-            video.currentTime = Math.min(trimStart + nextIndex / fps, trimStart + duration - 0.001);
+            video.currentTime = Math.min(
+                trimStart + nextIndex / fps,
+                trimStart + duration - 0.001
+            );
         }
 
         if (frameIndex % 10 === 0 || frameIndex === totalFrames - 1) {
             const progress = 10 + Math.round((frameIndex / totalFrames) * 80);
+
             setProgress({
                 status: "encoding",
                 progress,
@@ -451,6 +552,7 @@ async function exportWithMediabunny(
     }
 
     const blob = new Blob([buffer], { type: "video/mp4" });
+
     downloadBlob(blob, `video-export-${width}x${height}.mp4`);
 
     setProgress({
@@ -460,7 +562,6 @@ async function exportWithMediabunny(
     });
 }
 
-// Export with MediaBunny for video + FFmpeg for audio mixing
 async function exportWithMediabunnyAndAudio(
     video: HTMLVideoElement,
     canvasHandle: VideoCanvasHandle,
@@ -475,30 +576,48 @@ async function exportWithMediabunnyAndAudio(
     cancellation: CancellationToken,
     settings: ExportSettings
 ): Promise<void> {
-    const hasAudioTracks = settings.audioTracks && settings.audioTracks.length > 0;
+    const hasAudioTracks = !!settings.audioTracks?.length;
     const sourceHasAudioStream = settings.videoHasAudioTrack !== false;
 
-    const hasMultipleClips = settings.videoClips && settings.videoClips.length > 1 && settings.videoClipBlobs;
+    const hasMultipleClips =
+        !!settings.videoClips &&
+        settings.videoClips.length > 1 &&
+        !!settings.videoClipBlobs;
+
     const clips = settings.videoClips || [];
     const clipBlobs = settings.videoClipBlobs;
-
     const clipAudioStates = settings.clipAudioStates;
+
     let hasPerClipAudio = true;
+
     if (clipAudioStates) {
         if (hasMultipleClips) {
-            hasPerClipAudio = clips.some(clip => clipAudioStates[clip.libraryVideoId] !== false);
+            hasPerClipAudio = clips.some(
+                (clip) => clipAudioStates[clip.libraryVideoId] !== false
+            );
         } else if (clips.length > 0) {
             hasPerClipAudio = clipAudioStates[clips[0].libraryVideoId] !== false;
         }
     }
 
-    const hasOriginalAudio = !settings.muteOriginalAudio && sourceHasAudioStream && hasPerClipAudio;
+    const hasOriginalAudio =
+        !settings.muteOriginalAudio && sourceHasAudioStream && hasPerClipAudio;
+
     const needsAudioMixing = hasAudioTracks || hasOriginalAudio;
 
     if (!needsAudioMixing && !hasMultipleClips) {
         return exportWithMediabunny(
-            video, canvasHandle, canvas, duration, trimStart, fps,
-            bitrate, width, height, setProgress, cancellation
+            video,
+            canvasHandle,
+            canvas,
+            duration,
+            trimStart,
+            fps,
+            bitrate,
+            width,
+            height,
+            setProgress,
+            cancellation
         );
     }
 
@@ -509,7 +628,9 @@ async function exportWithMediabunnyAndAudio(
     setProgress({
         status: "encoding",
         progress: 5,
-        message: hasMultipleClips ? `Preparando exportación multi-clip...` : `Preparando exportación con audio...`,
+        message: hasMultipleClips
+            ? "Preparando exportación multi-clip..."
+            : "Preparando exportación con audio...",
     });
 
     const totalFrames = Math.ceil(duration * fps);
@@ -524,7 +645,7 @@ async function exportWithMediabunnyAndAudio(
 
     const videoSource = new CanvasSource(canvas, {
         codec: "avc",
-        bitrate: bitrate,
+        bitrate,
     });
 
     output.addVideoTrack(videoSource, {
@@ -540,18 +661,24 @@ async function exportWithMediabunnyAndAudio(
     if (hasMultipleClips && clips.length > 0) {
         const sortedClips = [...clips].sort((a, b) => a.startTime - b.startTime);
         const firstClip = sortedClips[0];
+
         if (firstClip && clipBlobs) {
             const blob = clipBlobs.get(firstClip.libraryVideoId);
+
             if (blob) {
                 const blobUrl = URL.createObjectURL(blob);
+
                 video.src = blobUrl;
+
                 await new Promise<void>((resolve, reject) => {
                     video.onloadedmetadata = () => resolve();
                     video.onerror = () => reject(new Error("Failed to load video"));
                 });
+
                 currentClipId = firstClip.id;
             }
         }
+
         video.currentTime = clips[0]?.trimStart || 0;
     } else {
         video.currentTime = trimStart;
@@ -575,19 +702,24 @@ async function exportWithMediabunnyAndAudio(
 
                 if (clip.id !== currentClipId) {
                     const newBlob = clipBlobs.get(clip.libraryVideoId);
+
                     if (newBlob) {
                         const blobUrl = URL.createObjectURL(newBlob);
+
                         video.pause();
                         video.src = blobUrl;
+
                         await new Promise<void>((resolve, reject) => {
                             video.onloadedmetadata = () => resolve();
                             video.onerror = () => reject(new Error("Failed to load video"));
                         });
+
                         currentClipId = clip.id;
                     }
                 }
 
                 video.currentTime = clipTime;
+
                 await waitForVideoFrame(video);
             }
         }
@@ -597,13 +729,18 @@ async function exportWithMediabunnyAndAudio(
 
         if (!hasMultipleClips) {
             const nextFrame = frameIndex + 1;
+
             if (nextFrame < totalFrames) {
-                video.currentTime = Math.min(trimStart + nextFrame / fps, trimStart + duration - 0.001);
+                video.currentTime = Math.min(
+                    trimStart + nextFrame / fps,
+                    trimStart + duration - 0.001
+                );
             }
         }
 
         if (frameIndex % 10 === 0 || frameIndex === totalFrames - 1) {
             const progress = 5 + Math.round((frameIndex / totalFrames) * 50);
+
             setProgress({
                 status: "encoding",
                 progress,
@@ -615,6 +752,7 @@ async function exportWithMediabunnyAndAudio(
 
         if (!hasMultipleClips) {
             const nextFrame = frameIndex + 1;
+
             if (nextFrame < totalFrames) {
                 await waitForVideoFrame(video);
             }
@@ -634,6 +772,7 @@ async function exportWithMediabunnyAndAudio(
     await output.finalize();
 
     const buffer = (output.target as BufferTarget).buffer;
+
     if (!buffer) {
         throw new Error("No se pudo generar el archivo de video");
     }
@@ -642,26 +781,44 @@ async function exportWithMediabunnyAndAudio(
 
     if (!needsAudioMixing) {
         downloadBlob(videoBlob, `video-export-${width}x${height}.mp4`);
-        setProgress({ status: "complete", progress: 100, message: "¡Exportación completada!" });
+        setProgress({
+            status: "complete",
+            progress: 100,
+            message: "¡Exportación completada!",
+        });
         return;
     }
 
+    const audioClips =
+        hasOriginalAudio && hasMultipleClips && clipBlobs
+            ? clips.filter(
+                  (clip) =>
+                      (!clipAudioStates ||
+                          clipAudioStates[clip.libraryVideoId] !== false) &&
+                      clipBlobs.has(clip.libraryVideoId)
+              )
+            : [];
 
-    const audioClips = (hasOriginalAudio && hasMultipleClips && clipBlobs)
-        ? clips.filter(clip =>
-            (!clipAudioStates || clipAudioStates[clip.libraryVideoId] !== false) &&
-            clipBlobs.has(clip.libraryVideoId)
-        )
-        : [];
+    const sourceBlob =
+        hasOriginalAudio && !hasMultipleClips ? settings.videoBlob : undefined;
 
-    const sourceBlob = (hasOriginalAudio && !hasMultipleClips) ? settings.videoBlob : undefined;
     const hasUsableSourceBlob = !!(sourceBlob && sourceBlob.size > 0);
     const hasUsableMultiClipAudio = audioClips.length > 0;
-    const hasUsableAudioTracks = !!(settings.audioTracks && settings.audioTracks.some(t => t.audioUrl));
+    const hasUsableAudioTracks = !!settings.audioTracks?.some(
+        (track) => track.audioUrl
+    );
 
-    if (!hasUsableSourceBlob && !hasUsableMultiClipAudio && !hasUsableAudioTracks) {
+    if (
+        !hasUsableSourceBlob &&
+        !hasUsableMultiClipAudio &&
+        !hasUsableAudioTracks
+    ) {
         downloadBlob(videoBlob, `video-export-${width}x${height}.mp4`);
-        setProgress({ status: "complete", progress: 100, message: "¡Exportación completada!" });
+        setProgress({
+            status: "complete",
+            progress: 100,
+            message: "¡Exportación completada!",
+        });
         return;
     }
 
@@ -677,76 +834,135 @@ async function exportWithMediabunnyAndAudio(
 
         await ffmpeg.load({
             coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
-            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
+            wasmURL: await toBlobURL(
+                `${baseURL}/ffmpeg-core.wasm`,
+                "application/wasm"
+            ),
         });
 
         const videoData = new Uint8Array(await videoBlob.arrayBuffer());
+
         await ffmpeg.writeFile("video.mp4", videoData);
 
         let hasSourceAudio = false;
-        const clipAudioFiles: { clip: (typeof clips)[0]; filename: string }[] = [];
 
-        if (hasOriginalAudio && hasMultipleClips && audioClips.length > 0 && clipBlobs) {
+        const clipAudioFiles: {
+            clip: (typeof clips)[0];
+            filename: string;
+        }[] = [];
+
+        if (
+            hasOriginalAudio &&
+            hasMultipleClips &&
+            audioClips.length > 0 &&
+            clipBlobs
+        ) {
             for (let i = 0; i < audioClips.length; i++) {
                 const clip = audioClips[i];
                 const blob = clipBlobs.get(clip.libraryVideoId);
+
                 if (!blob) continue;
+
                 const filename = `clip_audio_${i}.mp4`;
+
                 try {
                     const clipData = new Uint8Array(await blob.arrayBuffer());
+
                     await ffmpeg.writeFile(filename, clipData);
+
                     try {
-                        await ffmpeg.exec(["-i", filename, "-vn", "-t", "0.1", "-f", "null", "-"]);
+                        await ffmpeg.exec([
+                            "-i",
+                            filename,
+                            "-vn",
+                            "-t",
+                            "0.1",
+                            "-f",
+                            "null",
+                            "-",
+                        ]);
+
                         clipAudioFiles.push({ clip, filename });
                     } catch {
-                        await ffmpeg.deleteFile(filename).catch(() => { });
+                        await ffmpeg.deleteFile(filename).catch(() => {});
                     }
-                } catch (e) {
-                    console.warn(`Could not load clip audio ${i}:`, e);
+                } catch (error) {
+                    console.warn(`Could not load clip audio ${i}:`, error);
                 }
             }
+
             hasSourceAudio = clipAudioFiles.length > 0;
         } else if (hasOriginalAudio && !hasMultipleClips && hasUsableSourceBlob) {
             try {
-                const originalVideoData = new Uint8Array(await sourceBlob!.arrayBuffer());
+                const originalVideoData = new Uint8Array(
+                    await sourceBlob!.arrayBuffer()
+                );
+
                 await ffmpeg.writeFile("original.mp4", originalVideoData);
 
                 try {
                     await ffmpeg.exec([
-                        "-i", "original.mp4",
-                        "-vn", "-t", "0.1",
-                        "-f", "null", "-"
+                        "-i",
+                        "original.mp4",
+                        "-vn",
+                        "-t",
+                        "0.1",
+                        "-f",
+                        "null",
+                        "-",
                     ]);
+
                     hasSourceAudio = true;
                 } catch {
                     hasSourceAudio = false;
-                    await ffmpeg.deleteFile("original.mp4").catch(() => { });
+                    await ffmpeg.deleteFile("original.mp4").catch(() => {});
                 }
-            } catch (e) {
-                console.warn("Could not read video blob for audio:", e);
+            } catch (error) {
+                console.warn("Could not read video blob for audio:", error);
                 hasSourceAudio = false;
             }
         }
 
-        const audioTracks: { index: number; filename: string; track: NonNullable<typeof settings.audioTracks>[0] }[] = [];
+        const externalAudioTracks: {
+            index: number;
+            filename: string;
+            track: NonNullable<ExportSettings["audioTracks"]>[0];
+        }[] = [];
+
         if (settings.audioTracks && settings.audioTracks.length > 0) {
             const fetchResults = await Promise.all(
-                settings.audioTracks.map(async (track, i) => {
+                settings.audioTracks.map(async (track, index) => {
                     if (!track.audioUrl) return null;
+
                     try {
                         const response = await fetch(track.audioUrl);
-                        const audioData = new Uint8Array(await response.arrayBuffer());
-                        return { index: i, filename: `audio${i}.mp3`, track, audioData };
-                    } catch (e) {
-                        console.warn(`Could not load audio track ${i}:`, e);
+                        const audioData = new Uint8Array(
+                            await response.arrayBuffer()
+                        );
+
+                        return {
+                            index,
+                            filename: `audio${index}.mp3`,
+                            track,
+                            audioData,
+                        };
+                    } catch (error) {
+                        console.warn(`Could not load audio track ${index}:`, error);
                         return null;
                     }
                 })
             );
+
             for (const result of fetchResults) {
                 if (!result) continue;
+
                 await ffmpeg.writeFile(result.filename, result.audioData);
-                audioTracks.push({ index: result.index, filename: result.filename, track: result.track });
+
+                externalAudioTracks.push({
+                    index: result.index,
+                    filename: result.filename,
+                    track: result.track,
+                });
             }
         }
 
@@ -761,26 +977,46 @@ async function exportWithMediabunnyAndAudio(
         if (hasSourceAudio) {
             if (hasMultipleClips && clipAudioFiles.length > 0) {
                 for (const { clip, filename } of clipAudioFiles) {
-                    ffmpegArgs.push("-ss", String(clip.trimStart), "-t", String(clip.duration), "-i", filename);
+                    ffmpegArgs.push(
+                        "-ss",
+                        String(clip.trimStart),
+                        "-t",
+                        String(clip.duration),
+                        "-i",
+                        filename
+                    );
                 }
             } else {
-                ffmpegArgs.push("-ss", String(trimStart), "-t", String(duration), "-i", "original.mp4");
+                ffmpegArgs.push(
+                    "-ss",
+                    String(trimStart),
+                    "-t",
+                    String(duration),
+                    "-i",
+                    "original.mp4"
+                );
             }
         }
 
-        for (const audioTrackFile of audioTracks) {
+        for (const audioTrackFile of externalAudioTracks) {
+            if (audioTrackFile.track.loop) {
+                ffmpegArgs.push("-stream_loop", "-1");
+            }
+
             ffmpegArgs.push("-i", audioTrackFile.filename);
         }
 
         const audioInputs: string[] = [];
         let filterComplex = "";
-        let inputIndex = 1; // Start at 1 because 0 is the video
+        let inputIndex = 1;
 
         if (hasSourceAudio) {
             const volume = settings.masterVolume ?? 1;
+
             if (hasMultipleClips && clipAudioFiles.length > 0) {
                 for (const { clip } of clipAudioFiles) {
                     const delayMs = Math.round(clip.startTime * 1000);
+
                     filterComplex += `[${inputIndex}:a]adelay=${delayMs}|${delayMs},volume=${volume}[a${inputIndex}];`;
                     audioInputs.push(`[a${inputIndex}]`);
                     inputIndex++;
@@ -792,36 +1028,41 @@ async function exportWithMediabunnyAndAudio(
             }
         }
 
-        for (const audioTrackFile of audioTracks) {
+        for (const audioTrackFile of externalAudioTracks) {
             const { track } = audioTrackFile;
-            const trackVolume = track.volume * (settings.masterVolume ?? 1);
-            const delayMs = Math.round(track.startTime * 1000);
-            const audioTrimStart = track.trimStart ?? 0;
-            const audioTrimEnd = audioTrimStart + track.duration;
 
-            filterComplex += `[${inputIndex}:a]atrim=${audioTrimStart}:${audioTrimEnd},asetpts=PTS-STARTPTS,adelay=${delayMs}|${delayMs},volume=${trackVolume}[a${inputIndex}];`;
+            filterComplex += buildExternalAudioFilter(
+                inputIndex,
+                track,
+                settings.masterVolume ?? 1
+            );
+
             audioInputs.push(`[a${inputIndex}]`);
             inputIndex++;
         }
 
-        const totalAudioInputs = audioInputs.length;
-
-        if (totalAudioInputs === 0) {
+        if (audioInputs.length === 0) {
             downloadBlob(videoBlob, `video-export-${width}x${height}.mp4`);
-            setProgress({ status: "complete", progress: 100, message: "¡Exportación completada!" });
+            setProgress({
+                status: "complete",
+                progress: 100,
+                message: "¡Exportación completada!",
+            });
             return;
-        } else if (audioInputs.length > 0) {
-            filterComplex += `${audioInputs.join("")}amix=inputs=${audioInputs.length}:duration=longest:dropout_transition=0:normalize=0[aout]`;
-            ffmpegArgs.push("-filter_complex", filterComplex);
-            ffmpegArgs.push("-map", "0:v", "-map", "[aout]");
-            ffmpegArgs.push("-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "output.mp4");
-        } else {
-            ffmpegArgs.push("-c:v", "copy", "-an", "output.mp4");
         }
+
+        filterComplex += `${audioInputs.join(
+            ""
+        )}amix=inputs=${audioInputs.length}:duration=longest:dropout_transition=0:normalize=0,atrim=0:${duration},asetpts=PTS-STARTPTS[aout]`;
+
+        ffmpegArgs.push("-filter_complex", filterComplex);
+        ffmpegArgs.push("-map", "0:v", "-map", "[aout]");
+        ffmpegArgs.push("-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "output.mp4");
 
         ffmpeg.on("progress", ({ progress }) => {
             if (progress > 0) {
                 const mixProgress = 70 + Math.round(progress * 25);
+
                 setProgress({
                     status: "finalizing",
                     progress: Math.min(mixProgress, 95),
@@ -832,14 +1073,17 @@ async function exportWithMediabunnyAndAudio(
 
         try {
             await ffmpeg.exec(ffmpegArgs);
-        } catch (e) {
-            console.error("FFmpeg audio mixing failed:", e);
+        } catch (error) {
+            console.error("FFmpeg audio mixing failed:", error);
+
             downloadBlob(videoBlob, `video-export-${width}x${height}.mp4`);
+
             setProgress({
                 status: "complete",
                 progress: 100,
                 message: "¡Exportación completada (sin mezcla de audio)!",
             });
+
             return;
         }
 
@@ -850,19 +1094,28 @@ async function exportWithMediabunnyAndAudio(
         });
 
         const outputData = (await ffmpeg.readFile("output.mp4")) as Uint8Array;
-        const outputBlob = new Blob([new Uint8Array(outputData)], { type: "video/mp4" });
+        const outputBlob = new Blob([new Uint8Array(outputData)], {
+            type: "video/mp4",
+        });
 
         try {
             await ffmpeg.deleteFile("video.mp4");
             await ffmpeg.deleteFile("output.mp4");
-            if (hasSourceAudio && !hasMultipleClips) await ffmpeg.deleteFile("original.mp4");
-            for (const { filename } of clipAudioFiles) {
-                await ffmpeg.deleteFile(filename).catch(() => { });
+
+            if (hasSourceAudio && !hasMultipleClips) {
+                await ffmpeg.deleteFile("original.mp4");
             }
-            for (const audioTrackFile of audioTracks) {
+
+            for (const { filename } of clipAudioFiles) {
+                await ffmpeg.deleteFile(filename).catch(() => {});
+            }
+
+            for (const audioTrackFile of externalAudioTracks) {
                 await ffmpeg.deleteFile(audioTrackFile.filename);
             }
-        } catch { /* ignore cleanup errors */ }
+        } catch {
+            // ignore cleanup errors
+        }
 
         downloadBlob(outputBlob, `video-export-${width}x${height}.mp4`);
 
@@ -873,7 +1126,9 @@ async function exportWithMediabunnyAndAudio(
         });
     } catch (ffmpegError) {
         console.warn("FFmpeg audio processing failed, exporting video only:", ffmpegError);
+
         downloadBlob(videoBlob, `video-export-${width}x${height}.mp4`);
+
         setProgress({
             status: "complete",
             progress: 100,
@@ -918,19 +1173,31 @@ async function exportWithFFmpegGif(
     try {
         if (cancellation.cancelled) throw new Error("Exportación cancelada");
 
-        setProgress({ status: "preparing", progress: 3, message: "Cargando motor de exportación GIF..." });
+        setProgress({
+            status: "preparing",
+            progress: 3,
+            message: "Cargando motor de exportación GIF...",
+        });
 
         const baseURL = `${window.location.origin}/ffmpeg`;
 
         await ffmpeg.load({
             coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
-            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
+            wasmURL: await toBlobURL(
+                `${baseURL}/ffmpeg-core.wasm`,
+                "application/wasm"
+            ),
         });
 
-        setProgress({ status: "encoding", progress: 8, message: `Capturando ${totalFrames} frames...` });
+        setProgress({
+            status: "encoding",
+            progress: 8,
+            message: `Capturando ${totalFrames} frames...`,
+        });
 
         video.pause();
         video.currentTime = trimStart;
+
         await waitForVideoFrame(video);
 
         for (let i = 0; i < totalFrames; i++) {
@@ -939,16 +1206,22 @@ async function exportWithFFmpegGif(
             await canvasHandle.drawFrame();
 
             const nextI = i + 1;
+
             if (nextI < totalFrames) {
-                video.currentTime = Math.min(trimStart + nextI / fps, trimStart + duration - 0.001);
+                video.currentTime = Math.min(
+                    trimStart + nextI / fps,
+                    trimStart + duration - 0.001
+                );
             }
 
             const blob = await canvasToBlobFast(canvas);
             const data = await blobToUint8Array(blob);
+
             await ffmpeg.writeFile(`frame${String(i).padStart(5, "0")}.jpg`, data);
 
             if (i % 10 === 0 || i === totalFrames - 1) {
                 const progress = 8 + Math.round((i / totalFrames) * 50);
+
                 setProgress({
                     status: "encoding",
                     progress,
@@ -961,47 +1234,75 @@ async function exportWithFFmpegGif(
             }
         }
 
-        setProgress({ status: "finalizing", progress: 60, message: "Generando paleta de colores óptima..." });
+        setProgress({
+            status: "finalizing",
+            progress: 60,
+            message: "Generando paleta de colores óptima...",
+        });
 
         await ffmpeg.exec([
-            "-f", "image2",
-            "-framerate", String(fps),
-            "-i", "frame%05d.jpg",
-            "-vf", `scale=${width}:${height}:flags=lanczos,palettegen=stats_mode=diff:max_colors=256`,
+            "-f",
+            "image2",
+            "-framerate",
+            String(fps),
+            "-i",
+            "frame%05d.jpg",
+            "-vf",
+            `scale=${width}:${height}:flags=lanczos,palettegen=stats_mode=diff:max_colors=256`,
             "palette.png",
         ]);
 
         if (cancellation.cancelled) throw new Error("Exportación cancelada");
 
-        setProgress({ status: "finalizing", progress: 78, message: "Sintetizando GIF animado..." });
+        setProgress({
+            status: "finalizing",
+            progress: 78,
+            message: "Sintetizando GIF animado...",
+        });
 
         await ffmpeg.exec([
-            "-f", "image2",
-            "-framerate", String(fps),
-            "-i", "frame%05d.jpg",
-            "-i", "palette.png",
-            "-lavfi", `scale=${width}:${height}:flags=lanczos [scaled]; [scaled][1:v] paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle`,
+            "-f",
+            "image2",
+            "-framerate",
+            String(fps),
+            "-i",
+            "frame%05d.jpg",
+            "-i",
+            "palette.png",
+            "-lavfi",
+            `scale=${width}:${height}:flags=lanczos [scaled]; [scaled][1:v] paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle`,
             "output.gif",
         ]);
 
-        setProgress({ status: "finalizing", progress: 94, message: "Descargando GIF..." });
+        setProgress({
+            status: "finalizing",
+            progress: 94,
+            message: "Descargando GIF...",
+        });
 
         const gifData = (await ffmpeg.readFile("output.gif")) as Uint8Array;
-        const gifBlob = new Blob([new Uint8Array(gifData)], { type: "image/gif" });
+        const gifBlob = new Blob([new Uint8Array(gifData)], {
+            type: "image/gif",
+        });
+
         downloadBlob(gifBlob, `animation-${width}x${height}.gif`);
 
-        setProgress({ status: "complete", progress: 100, message: "¡GIF exportado exitosamente!" });
-
+        setProgress({
+            status: "complete",
+            progress: 100,
+            message: "¡GIF exportado exitosamente!",
+        });
     } finally {
         if (ffmpeg.loaded) {
             try {
                 await ffmpeg.deleteFile("output.gif");
                 await ffmpeg.deleteFile("palette.png");
+
                 for (let i = 0; i < totalFrames; i++) {
                     await ffmpeg.deleteFile(`frame${String(i).padStart(5, "0")}.jpg`);
                 }
-            } catch (e) {
-                console.warn("Error limpiando archivos temporales de FFmpeg", e);
+            } catch (error) {
+                console.warn("Error limpiando archivos temporales de FFmpeg", error);
             }
         }
     }
