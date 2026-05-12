@@ -45,6 +45,8 @@ import { VIDEO_Z_INDEX } from "@/lib/constants";
 import Image from "next/image";
 import Link from "next/link";
 import { TooltipAction } from "@/components/ui/tooltip-action";
+import type { CursorConfig } from "@/types/cursor.types";
+import { DEFAULT_CURSOR_CONFIG } from "@/types/cursor.types";
 
 const ControlPanel = lazy(() => import("@/app/components/ui/editor/ControlPanel").then(mod => ({ default: mod.ControlPanel })));
 const Timeline = lazy(() => import("@/app/components/ui/editor/Timeline").then(mod => ({ default: mod.Timeline })));
@@ -223,6 +225,18 @@ export default function Editor() {
     const [videoHasAudioTrack, setVideoHasAudioTrack] = useState<boolean>(true);
 
     const [isRecordedVideo, setIsRecordedVideo] = useState<boolean>(false);
+    const [cursorConfig, setCursorConfig] =
+        useState<CursorConfig>(DEFAULT_CURSOR_CONFIG);
+
+    const handleCursorConfigChange = useCallback(
+        (partial: Partial<CursorConfig>) => {
+            setCursorConfig((prev) => ({
+                ...prev,
+                ...partial,
+            }));
+        },
+        []
+    );
 
     // Camera overlay state (from recorded video's camera track, or post-record adjustments)
     const [cameraConfig, setCameraConfig] = useState<CameraConfig | null>(null);
@@ -2810,6 +2824,9 @@ export default function Editor() {
                                         onDeleteImageProject={handleDeleteImageProject}
                                         onUploadImageToHistory={handleUploadImageToHistory}
                                         elementsTextTabTrigger={elementsTextTabTrigger}
+                                        cursorConfig={cursorConfig}
+                                        onCursorConfigChange={handleCursorConfigChange}
+                                        isRecordedVideo={isRecordedVideo}
                                     />
                                 </Suspense>
                             </motion.div>
@@ -2907,6 +2924,7 @@ export default function Editor() {
                         onTextToolDeactivate={() => setTextToolActive(false)}
                         cameraUrl={effectiveCameraUrl}
                         cameraConfig={cameraConfig}
+                        cursorConfig={cursorConfig}
                         onCameraConfigChange={handleCameraConfigChange}
                         onCameraClick={handleCameraClick}
                         onEnded={() => {
@@ -3078,6 +3096,9 @@ export default function Editor() {
                 onToggleMuteOriginalAudio={handleToggleMuteOriginalAudio}
                 onMasterVolumeChange={handleMasterVolumeChange}
                 videoDuration={videoDuration}
+                cursorConfig={cursorConfig}
+                onCursorConfigChange={handleCursorConfigChange}
+                isRecordedVideo={isRecordedVideo}
             />
 
             <Suspense fallback={null}>
