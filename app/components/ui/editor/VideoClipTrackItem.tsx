@@ -7,6 +7,7 @@ import type { VideoTrackClip } from "@/types/video-track.types";
 import { Icon } from "@iconify/react";
 
 const MIN_CLIP_DURATION = 0.1;
+const SNAP_THRESHOLD_PX = 10;
 const DB_NAME = "openvidDB";
 const VIDEO_STORE_NAME = "videos";
 const DB_VERSION = 3;
@@ -39,7 +40,15 @@ function formatDuration(seconds: number): string {
   return mins > 0 ? `${mins}:${secs.toString().padStart(2, "0")}` : `${secs}s`;
 }
 
-async function getVideoBlobFromIndexedDB(videoId: string): Promise<Blob | null> {
+function isShiftPressed(
+  event: MouseEvent | TouchEvent | PointerEvent,
+): boolean {
+  return "shiftKey" in event && event.shiftKey;
+}
+
+async function getVideoBlobFromIndexedDB(
+  videoId: string,
+): Promise<Blob | null> {
   if (typeof indexedDB === "undefined") return null;
 
   return new Promise((resolve) => {
@@ -172,7 +181,9 @@ async function generateWaveformPeaks(params: {
     if (!AudioCtx) return [];
 
     const audioContext = new AudioCtx();
-    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+    const audioBuffer = await audioContext.decodeAudioData(
+      arrayBuffer.slice(0),
+    );
     await audioContext.close().catch(() => undefined);
 
     if (audioBuffer.numberOfChannels === 0) return [];
@@ -208,6 +219,7 @@ export function VideoClipTrackItem({
   contentWidth,
   totalDuration,
   otherClips,
+  currentTime = 0,
   onSelect,
   onUpdate,
   onDragStateChange,
@@ -217,8 +229,8 @@ export function VideoClipTrackItem({
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState<"start" | "end" | null>(null);
   const [isHovered, setIsHovered] = useState(false);
+  const [snapHint, setSnapHint] = useState<string | null>(null);
 
-  const [videoObjectUrl, setVideoObjectUrl] = useState<string | null>(null);
   const [thumbnails, setThumbnails] = useState<string[]>([]);
   const [waveformPeaks, setWaveformPeaks] = useState<number[]>([]);
   const [isGeneratingMedia, setIsGeneratingMedia] = useState(false);
@@ -236,7 +248,7 @@ export function VideoClipTrackItem({
       if (totalDuration === 0) return 0;
       return (time / totalDuration) * contentWidth;
     },
-    [totalDuration, contentWidth]
+    [totalDuration, contentWidth],
   );
 
   const pixelsToTime = useCallback(
@@ -244,7 +256,69 @@ export function VideoClipTrackItem({
       if (contentWidth === 0) return 0;
       return (pixels / contentWidth) * totalDuration;
     },
-    [contentWidth, totalDuration]
+    [contentWidth, totalDuration],
+  );
+
+  const snapPoints = useMemo(() => {
+    const points = new Set<number>();
+
+    points.add(0);
+    points.add(totalDuration);
+    points.add(currentTime);
+
+    otherClips.forEach((other) => {
+      const duration = other.trimEnd - other.trimStart;
+      points.add(other.startTime);
+      points.add(other.startTime + duration);
+    });
+
+    return Array.from(points)
+      .filter(
+        (time) => Number.isFinite(time) && time >= 0 && time <= totalDuration,
+      )
+      .sort((a, b) => a - b);
+  }, [otherClips, currentTime, totalDuration]);
+
+  const getSnappedTime = useCallback(
+    (time: number, thresholdPx = SNAP_THRESHOLD_PX) => {
+      if (
+        totalDuration === 0 ||
+        contentWidth === 0 ||
+        snapPoints.length === 0
+      ) {
+        setSnapHint(null);
+        return time;
+      }
+
+      const thresholdSeconds = (thresholdPx / contentWidth) * totalDuration;
+      let closest = time;
+      let closestDistance = thresholdSeconds;
+
+      for (const point of snapPoints) {
+        const distance = Math.abs(point - time);
+        if (distance <= closestDistance) {
+          closest = point;
+          closestDistance = distance;
+        }
+      }
+
+      if (closest !== time) {
+        if (Math.abs(closest - currentTime) <= thresholdSeconds) {
+          setSnapHint("Snap al playhead");
+        } else if (closest === 0) {
+          setSnapHint("Snap al inicio");
+        } else if (closest === totalDuration) {
+          setSnapHint("Snap al final");
+        } else {
+          setSnapHint("Snap a otro clip");
+        }
+      } else {
+        setSnapHint(null);
+      }
+
+      return Math.max(0, Math.min(totalDuration, closest));
+    },
+    [contentWidth, totalDuration, snapPoints, currentTime],
   );
 
   const initialLeft = timeToPixels(clip.startTime);
@@ -285,10 +359,6 @@ export function VideoClipTrackItem({
 
       objectUrl = URL.createObjectURL(blob);
 
-      if (!cancelled) {
-        setVideoObjectUrl(objectUrl);
-      }
-
       const [generatedThumbnails, generatedWaveform] = await Promise.all([
         generateVideoThumbnails({
           videoUrl: objectUrl,
@@ -320,9 +390,7 @@ export function VideoClipTrackItem({
   }, [clip.libraryVideoId, clip.duration, zoomLevel]);
 
   const boundaries = useMemo(() => {
-    const sorted = [...otherClips]
-      .filter((c) => c.id !== clip.id)
-      .sort((a, b) => a.startTime - b.startTime);
+    const sorted = [...otherClips].sort((a, b) => a.startTime - b.startTime);
 
     let minStart = 0;
     let maxEnd = Infinity;
@@ -342,23 +410,46 @@ export function VideoClipTrackItem({
     }
 
     return { minStart, maxEnd };
-  }, [otherClips, clip.id, clip.startTime, clipDuration]);
+  }, [otherClips, clip.startTime, clipDuration]);
 
   const handleDrag = useCallback(
-    (_e: MouseEvent | TouchEvent | PointerEvent, info: { delta: { x: number } }) => {
+    (
+      event: MouseEvent | TouchEvent | PointerEvent,
+      info: { delta: { x: number } },
+    ) => {
       if (contentWidth === 0 || totalDuration === 0) return;
 
       const currentX = clipX.get();
-      let newX = currentX + info.delta.x;
+      const rawX = currentX + info.delta.x;
+      const rawStartTime = pixelsToTime(rawX);
+      const shouldDisableSnap = isShiftPressed(event);
+      const snappedStartTime = shouldDisableSnap
+        ? rawStartTime
+        : getSnappedTime(rawStartTime);
 
-      const minX = timeToPixels(boundaries.minStart);
-      const maxX = timeToPixels(boundaries.maxEnd - clipDuration);
+      const minStartTime = boundaries.minStart;
+      const maxStartTime = Number.isFinite(boundaries.maxEnd)
+        ? boundaries.maxEnd - clipDuration
+        : totalDuration - clipDuration;
 
-      newX = Math.max(minX, Math.min(maxX, newX));
+      const newStartTime = Math.max(
+        minStartTime,
+        Math.min(maxStartTime, snappedStartTime),
+      );
+      const newX = timeToPixels(newStartTime);
 
       clipX.set(newX);
     },
-    [contentWidth, totalDuration, clipX, clipDuration, boundaries, timeToPixels]
+    [
+      contentWidth,
+      totalDuration,
+      clipX,
+      pixelsToTime,
+      getSnappedTime,
+      boundaries,
+      clipDuration,
+      timeToPixels,
+    ],
   );
 
   const handleDragStart = useCallback(() => {
@@ -368,6 +459,7 @@ export function VideoClipTrackItem({
 
   const handleDragEnd = useCallback(() => {
     setIsDragging(false);
+    setSnapHint(null);
     onDragStateChange?.(false);
 
     const newStartTime = pixelsToTime(clipX.get());
@@ -378,56 +470,101 @@ export function VideoClipTrackItem({
   }, [clipX, pixelsToTime, onUpdate, onDragStateChange]);
 
   const handleResizeStartDrag = useCallback(
-    (_e: MouseEvent | TouchEvent | PointerEvent, info: { delta: { x: number } }) => {
+    (
+      event: MouseEvent | TouchEvent | PointerEvent,
+      info: { delta: { x: number } },
+    ) => {
       if (contentWidth === 0 || totalDuration === 0) return;
 
       const currentX = clipX.get();
       const currentWidth = clipWidth.get();
 
-      let newX = currentX + info.delta.x;
-      let newWidth = currentWidth - info.delta.x;
+      let rawX = currentX + info.delta.x;
+      let rawWidth = currentWidth - info.delta.x;
 
       const minWidth = timeToPixels(MIN_CLIP_DURATION);
 
-      if (newWidth < minWidth) {
-        newWidth = minWidth;
-        newX = currentX + currentWidth - minWidth;
+      if (rawWidth < minWidth) {
+        rawWidth = minWidth;
+        rawX = currentX + currentWidth - minWidth;
       }
 
       const minX = timeToPixels(boundaries.minStart);
 
-      if (newX < minX) {
-        newWidth = newWidth - (minX - newX);
-        newX = minX;
+      if (rawX < minX) {
+        rawWidth = rawWidth - (minX - rawX);
+        rawX = minX;
       }
+
+      const rawStartTime = pixelsToTime(rawX);
+      const shouldDisableSnap = isShiftPressed(event);
+      const snappedStartTime = shouldDisableSnap
+        ? rawStartTime
+        : getSnappedTime(rawStartTime);
+
+      const currentEndTime = pixelsToTime(currentX + currentWidth);
+      const newStartTime = Math.max(
+        boundaries.minStart,
+        Math.min(currentEndTime - MIN_CLIP_DURATION, snappedStartTime),
+      );
+      const newX = timeToPixels(newStartTime);
+      const newWidth = Math.max(minWidth, timeToPixels(currentEndTime) - newX);
 
       clipX.set(newX);
       clipWidth.set(newWidth);
     },
-    [contentWidth, totalDuration, clipX, clipWidth, boundaries, timeToPixels]
+    [
+      contentWidth,
+      totalDuration,
+      clipX,
+      clipWidth,
+      boundaries,
+      timeToPixels,
+      pixelsToTime,
+      getSnappedTime,
+    ],
   );
 
   const handleResizeEndDrag = useCallback(
-    (_e: MouseEvent | TouchEvent | PointerEvent, info: { delta: { x: number } }) => {
+    (
+      event: MouseEvent | TouchEvent | PointerEvent,
+      info: { delta: { x: number } },
+    ) => {
       if (contentWidth === 0 || totalDuration === 0) return;
 
       const currentX = clipX.get();
       const currentWidth = clipWidth.get();
-
-      let newWidth = currentWidth + info.delta.x;
-
       const minWidth = timeToPixels(MIN_CLIP_DURATION);
-      newWidth = Math.max(minWidth, newWidth);
+      const currentStartTime = pixelsToTime(currentX);
+
+      let rawWidth = Math.max(minWidth, currentWidth + info.delta.x);
 
       if (Number.isFinite(boundaries.maxEnd)) {
         const maxWidthByBoundary = timeToPixels(boundaries.maxEnd) - currentX;
-        newWidth = Math.min(newWidth, maxWidthByBoundary);
+        rawWidth = Math.min(rawWidth, maxWidthByBoundary);
       }
 
       const maxAvailableDuration = clip.duration - clip.trimStart;
       const maxWidthBySource = timeToPixels(maxAvailableDuration);
+      rawWidth = Math.min(rawWidth, maxWidthBySource);
 
-      newWidth = Math.min(newWidth, maxWidthBySource);
+      const rawEndTime = pixelsToTime(currentX + rawWidth);
+      const shouldDisableSnap = isShiftPressed(event);
+      const snappedEndTime = shouldDisableSnap
+        ? rawEndTime
+        : getSnappedTime(rawEndTime);
+
+      const maxEndTime = Number.isFinite(boundaries.maxEnd)
+        ? boundaries.maxEnd
+        : totalDuration;
+      const newEndTime = Math.max(
+        currentStartTime + MIN_CLIP_DURATION,
+        Math.min(maxEndTime, snappedEndTime),
+      );
+      const newWidth = Math.max(
+        minWidth,
+        timeToPixels(newEndTime - currentStartTime),
+      );
 
       clipWidth.set(newWidth);
     },
@@ -438,9 +575,11 @@ export function VideoClipTrackItem({
       clipX,
       boundaries,
       timeToPixels,
+      pixelsToTime,
       clip.duration,
       clip.trimStart,
-    ]
+      getSnappedTime,
+    ],
   );
 
   const handleResizeStart = useCallback(
@@ -448,11 +587,12 @@ export function VideoClipTrackItem({
       setIsResizing(handle);
       onDragStateChange?.(true);
     },
-    [onDragStateChange]
+    [onDragStateChange],
   );
 
   const handleResizeEnd = useCallback(() => {
     setIsResizing(null);
+    setSnapHint(null);
     onDragStateChange?.(false);
 
     const newStartTime = pixelsToTime(clipX.get());
@@ -580,7 +720,9 @@ export function VideoClipTrackItem({
                 : "solar:videocamera-record-bold"
             }
             width="12"
-            className={isGeneratingMedia ? "animate-spin opacity-80" : "opacity-80"}
+            className={
+              isGeneratingMedia ? "animate-spin opacity-80" : "opacity-80"
+            }
           />
 
           <span className="truncate max-w-32">{clip.name}</span>
@@ -591,7 +733,13 @@ export function VideoClipTrackItem({
         </span>
       </div>
 
-      {isHovered && (
+      {snapHint && isInteracting && (
+        <div className="absolute left-1/2 top-1 z-30 -translate-x-1/2 rounded-full border border-cyan-300/20 bg-cyan-950/80 px-2 py-0.5 text-[10px] font-medium text-cyan-200 shadow-lg backdrop-blur-sm">
+          {snapHint}
+        </div>
+      )}
+
+      {isHovered && !snapHint && (
         <div className="absolute right-2 top-1.5 z-20 rounded-full border border-white/10 bg-black/50 px-2 py-0.5 text-[10px] text-white/60 backdrop-blur-sm">
           {thumbnails.length > 0 ? "Thumbnails" : "Generando preview"}
         </div>
