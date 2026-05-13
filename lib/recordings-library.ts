@@ -8,24 +8,33 @@ export type RecordingLibraryItem = {
   hasCamera?: boolean;
 };
 
+const DB_NAME = "openvidDB";
+const VIDEO_STORE_NAME = "videos";
+const DB_VERSION = 3;
+
 async function getDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const dbName = "openvidDB";
-    const storeName = "videos";
-    const version = 2;
-
-    const request = indexedDB.open(dbName, version);
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result;
 
-      if (!db.objectStoreNames.contains(storeName)) {
-        db.createObjectStore(storeName);
+      if (!db.objectStoreNames.contains(VIDEO_STORE_NAME)) {
+        db.createObjectStore(VIDEO_STORE_NAME);
       }
     };
 
     request.onsuccess = () => resolve(request.result);
+
     request.onerror = () => reject(request.error);
+
+    request.onblocked = () => {
+      reject(
+        new Error(
+          "La base de datos está bloqueada por otra pestaña. Cierra otras pestañas de Studio y vuelve a intentarlo."
+        )
+      );
+    };
   });
 }
 
@@ -36,16 +45,15 @@ function generateVideoId(): string {
 export async function listRecordedVideos(): Promise<RecordingLibraryItem[]> {
   try {
     const db = await getDB();
-    const storeName = "videos";
 
-    if (!db.objectStoreNames.contains(storeName)) {
+    if (!db.objectStoreNames.contains(VIDEO_STORE_NAME)) {
       db.close();
       return [];
     }
 
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([storeName], "readonly");
-      const store = transaction.objectStore(storeName);
+      const transaction = db.transaction([VIDEO_STORE_NAME], "readonly");
+      const store = transaction.objectStore(VIDEO_STORE_NAME);
       const request = store.getAllKeys();
 
       request.onsuccess = () => {
@@ -66,9 +74,13 @@ export async function listRecordedVideos(): Promise<RecordingLibraryItem[]> {
           getRequest.onsuccess = () => {
             const data = getRequest.result;
 
-            if (data?.blob && data?.videoId) {
+            if (data?.blob) {
+              const videoId =
+                data.videoId ||
+                (typeof key === "string" ? key : `vid_${String(key)}`);
+
               items.push({
-                videoId: data.videoId,
+                videoId,
                 duration: data.duration ?? 0,
                 timestamp: data.timestamp ?? Date.now(),
                 url: URL.createObjectURL(data.blob),
@@ -111,8 +123,8 @@ export async function setCurrentRecordedVideo(videoId: string): Promise<void> {
   const db = await getDB();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(["videos"], "readwrite");
-    const store = transaction.objectStore("videos");
+    const transaction = db.transaction([VIDEO_STORE_NAME], "readwrite");
+    const store = transaction.objectStore(VIDEO_STORE_NAME);
 
     store.put(
       {
@@ -131,6 +143,11 @@ export async function setCurrentRecordedVideo(videoId: string): Promise<void> {
       db.close();
       reject(transaction.error);
     };
+
+    transaction.onabort = () => {
+      db.close();
+      reject(transaction.error);
+    };
   });
 }
 
@@ -138,8 +155,8 @@ export async function deleteRecordedVideoById(videoId: string): Promise<void> {
   const db = await getDB();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(["videos"], "readwrite");
-    const store = transaction.objectStore("videos");
+    const transaction = db.transaction([VIDEO_STORE_NAME], "readwrite");
+    const store = transaction.objectStore(VIDEO_STORE_NAME);
 
     store.delete(videoId);
 
@@ -148,7 +165,10 @@ export async function deleteRecordedVideoById(videoId: string): Promise<void> {
     currentRequest.onsuccess = () => {
       const current = currentRequest.result;
 
-      if (current?.videoId === videoId) {
+      const currentVideoId =
+        typeof current === "string" ? current : current?.videoId;
+
+      if (currentVideoId === videoId) {
         store.delete("currentVideo");
       }
     };
@@ -162,6 +182,11 @@ export async function deleteRecordedVideoById(videoId: string): Promise<void> {
       db.close();
       reject(transaction.error);
     };
+
+    transaction.onabort = () => {
+      db.close();
+      reject(transaction.error);
+    };
   });
 }
 
@@ -171,20 +196,23 @@ export async function duplicateRecordedVideoById(
   const db = await getDB();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(["videos"], "readwrite");
-    const store = transaction.objectStore("videos");
+    const transaction = db.transaction([VIDEO_STORE_NAME], "readwrite");
+    const store = transaction.objectStore(VIDEO_STORE_NAME);
 
     const getRequest = store.get(videoId);
+
+    let newVideoId: string | null = null;
 
     getRequest.onsuccess = () => {
       const original = getRequest.result;
 
       if (!original?.blob) {
+        transaction.abort();
         reject(new Error("No se encontró la grabación para duplicar."));
         return;
       }
 
-      const newVideoId = generateVideoId();
+      newVideoId = generateVideoId();
 
       const duplicated = {
         ...original,
@@ -201,8 +229,6 @@ export async function duplicateRecordedVideoById(
         },
         "currentVideo"
       );
-
-      resolve(newVideoId);
     };
 
     getRequest.onerror = () => {
@@ -211,9 +237,20 @@ export async function duplicateRecordedVideoById(
 
     transaction.oncomplete = () => {
       db.close();
+
+      if (newVideoId) {
+        resolve(newVideoId);
+      } else {
+        reject(new Error("No se pudo duplicar la grabación."));
+      }
     };
 
     transaction.onerror = () => {
+      db.close();
+      reject(transaction.error);
+    };
+
+    transaction.onabort = () => {
       db.close();
       reject(transaction.error);
     };
@@ -224,8 +261,8 @@ export async function getCurrentRecordedVideoId(): Promise<string | null> {
   const db = await getDB();
 
   return new Promise((resolve) => {
-    const transaction = db.transaction(["videos"], "readonly");
-    const store = transaction.objectStore("videos");
+    const transaction = db.transaction([VIDEO_STORE_NAME], "readonly");
+    const store = transaction.objectStore(VIDEO_STORE_NAME);
     const request = store.get("currentVideo");
 
     request.onsuccess = () => {
@@ -238,7 +275,22 @@ export async function getCurrentRecordedVideoId(): Promise<string | null> {
         return;
       }
 
-      resolve(typeof current === "string" ? current : current.videoId ?? null);
+      if (typeof current === "string") {
+        resolve(current);
+        return;
+      }
+
+      if (current.videoId) {
+        resolve(current.videoId);
+        return;
+      }
+
+      if (current.blob && current.videoId) {
+        resolve(current.videoId);
+        return;
+      }
+
+      resolve(null);
     };
 
     request.onerror = () => {
