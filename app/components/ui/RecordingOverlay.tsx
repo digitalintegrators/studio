@@ -5,10 +5,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Icon } from "@iconify/react";
 
 interface RecordingOverlayProps {
-    isRecording: boolean;
+    isRecording?: boolean;
     isPaused?: boolean;
-    recordingTime: number;
-    onStop: () => void;
+    recordingTime?: number;
+    onStop?: () => void;
 }
 
 function formatTime(seconds: number) {
@@ -19,10 +19,10 @@ function formatTime(seconds: number) {
 }
 
 export default function RecordingOverlay({
-    isRecording,
+    isRecording = false,
     isPaused = false,
-    recordingTime,
-    onStop,
+    recordingTime = 0,
+    onStop = () => {},
 }: RecordingOverlayProps) {
     const [pipSupported, setPipSupported] = useState(false);
     const [pipActive, setPipActive] = useState(false);
