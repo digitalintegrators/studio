@@ -11,6 +11,8 @@ import { AudioFragmentTrackItem } from "./AudioFragmentTrackItem";
 import { VideoClipTrackItem } from "./VideoClipTrackItem";
 import { Icon } from "@iconify/react";
 import { useTranslations } from "next-intl";
+import { useVideoThumbnails } from "@/hooks/useVideoThumbnails";
+import { useAudioWaveform } from "@/hooks/useAudioWaveform";
 
 const DEFAULT_ZOOM_FRAGMENT_DURATION = 2;
 
@@ -74,6 +76,32 @@ export function Timeline({
     const pendingTrimRef = useRef<{ start: number; end: number } | null>(null);
 
     const TRACK_PADDING = 16;
+
+    const thumbnailInterval = useMemo(() => {
+        if (validDuration <= 30) return 2;
+        if (validDuration <= 120) return 4;
+        if (validDuration <= 600) return 8;
+        return 12;
+    }, [validDuration]);
+
+    const { thumbnails, isGenerating: isGeneratingThumbnails, progress: thumbnailProgress } = useVideoThumbnails(
+        videoClips.length > 0 ? null : videoUrl,
+        validDuration,
+        {
+            interval: thumbnailInterval,
+            quality: "medium",
+            width: 360,
+            progressive: false,
+        }
+    );
+
+    const { peaks: waveformPeaks, isGenerating: isGeneratingWaveform } = useAudioWaveform(
+        videoClips.length > 0 ? null : videoUrl,
+        validDuration,
+        {
+            samples: 160,
+        }
+    );
 
     const contentWidth = useMemo(() => {
         if (trackWidth === 0) return 0;
@@ -143,7 +171,7 @@ export function Timeline({
         if (!isDragging && !isDraggingPlayhead) {
             animate(playheadX, playheadPosition, {
                 type: "tween",
-                duration: 0.05,
+                duration: 0.12,
                 ease: "linear"
             });
         }
@@ -441,19 +469,60 @@ export function Timeline({
                                                     className="absolute top-0 bottom-0 rounded-md border border-[#34A853]/40 bg-[#182e20] overflow-hidden"
                                                     style={{ left: clipLeftMotion, width: clipWidthMotion }}
                                                 >
-                                                    <div className="absolute inset-0 flex items-center overflow-hidden">
-                                                        <div className="flex h-full w-full">
-                                                            {videoUrl && Array.from({ length: Math.max(1, Math.ceil(getZoomMultiplier(zoomLevel) * 3)) }).map((_, i) => (
-                                                                <div
-                                                                    key={i}
-                                                                    className="h-full flex-1 border-r border-[#34A853]/10 last:border-r-0"
-                                                                    style={{
-                                                                        background: 'linear-gradient(to top, rgba(0, 0, 0, 0) 0%, rgba(20, 80, 40, 0.1) 50%, rgba(52, 168, 83, 0.1) 100%)',
-                                                                        boxShadow: 'inset 0px 1px 0px rgba(255, 255, 255, 0.05)'
-                                                                    }}
-                                                                />
-                                                            ))}
-                                                        </div>
+                                                    <div className="absolute inset-0 overflow-hidden">
+                                                        {videoUrl && thumbnails.length > 0 ? (
+                                                            <div className="absolute inset-0 flex">
+                                                                {thumbnails.map((thumbnail, index) => (
+                                                                    <div
+                                                                        key={`${thumbnail.time}-${index}`}
+                                                                        className="h-full shrink-0 border-r border-[#34A853]/10 bg-cover bg-center opacity-80"
+                                                                        style={{
+                                                                            width: Math.max(44, contentWidth / Math.max(thumbnails.length, 1)),
+                                                                            backgroundImage: `linear-gradient(to bottom, rgba(4,9,7,0.12), rgba(4,9,7,0.72)), url(${thumbnail.dataUrl})`,
+                                                                        }}
+                                                                    />
+                                                                ))}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex h-full w-full">
+                                                                {videoUrl && Array.from({ length: Math.max(1, Math.ceil(getZoomMultiplier(zoomLevel) * 3)) }).map((_, i) => (
+                                                                    <div
+                                                                        key={i}
+                                                                        className="h-full flex-1 border-r border-[#34A853]/10 last:border-r-0"
+                                                                        style={{
+                                                                            background: 'linear-gradient(to top, rgba(0, 0, 0, 0) 0%, rgba(20, 80, 40, 0.1) 50%, rgba(52, 168, 83, 0.1) 100%)',
+                                                                            boxShadow: 'inset 0px 1px 0px rgba(255, 255, 255, 0.05)'
+                                                                        }}
+                                                                    />
+                                                                ))}
+                                                            </div>
+                                                        )}
+
+                                                        {videoUrl && isGeneratingThumbnails && thumbnails.length === 0 && (
+                                                            <div className="absolute inset-0 flex items-center justify-center bg-black/25">
+                                                                <div className="rounded-full border border-white/10 bg-black/50 px-3 py-1 text-[9px] font-medium text-emerald-300 backdrop-blur-md">
+                                                                    Generando previews {Math.round(thumbnailProgress)}%
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {waveformPeaks.length > 0 && (
+                                                            <div className="absolute inset-x-2 bottom-1.5 z-10 flex h-7 items-end gap-[1px] rounded-md bg-black/25 px-1 py-1 backdrop-blur-[2px]">
+                                                                {waveformPeaks.map((peak, index) => (
+                                                                    <div
+                                                                        key={index}
+                                                                        className="min-w-[1px] flex-1 rounded-full bg-emerald-300/70"
+                                                                        style={{ height: `${Math.max(10, peak * 100)}%` }}
+                                                                    />
+                                                                ))}
+                                                            </div>
+                                                        )}
+
+                                                        {videoUrl && isGeneratingWaveform && waveformPeaks.length === 0 && (
+                                                            <div className="absolute bottom-2 left-3 z-10 rounded-full bg-black/45 px-2 py-0.5 text-[8px] font-medium text-white/55 backdrop-blur">
+                                                                Analizando audio…
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     <motion.div
                                                         className="absolute top-0 bottom-0 -left-px border-r-2 border-[#4ade80]"
