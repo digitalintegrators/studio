@@ -1,119 +1,245 @@
 "use client";
 
-import { useRecording } from "@/hooks/RecordingContext";
-import FloatingCameraPreview from "./FloatingCameraPreview";
-import { useTranslations } from "next-intl";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Icon } from "@iconify/react";
 
-export default function RecordingOverlay() {
-    const t = useTranslations('recording.overlay');
-    const {
-        state,
-        countdown,
-        recordingTime,
-        stopRecording,
-        isCountdown,
-        isRecording,
-        isProcessing,
-        cameraStream,
-        cameraConfig,
-        updateCameraConfig,
-    } = useRecording();
+interface RecordingOverlayProps {
+    isRecording: boolean;
+    isPaused?: boolean;
+    recordingTime: number;
+    onStop: () => void;
+}
 
-    if (state === "idle") return null;
+function formatTime(seconds: number) {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
 
-    const showFloatingCamera = isCountdown && cameraStream && cameraConfig?.enabled;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
 
-    const formatTime = (seconds: number) => {
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    };
+export default function RecordingOverlay({
+    isRecording,
+    isPaused = false,
+    recordingTime,
+    onStop,
+}: RecordingOverlayProps) {
+    const [pipSupported, setPipSupported] = useState(false);
+    const [pipActive, setPipActive] = useState(false);
 
-    return (
-        <div className="fixed inset-0 z-9999 pointer-events-none">
-            {showFloatingCamera && cameraStream && cameraConfig && (
-                <FloatingCameraPreview
-                    stream={cameraStream}
-                    config={cameraConfig}
-                    onConfigChange={updateCameraConfig}
-                />
-            )}
-            {isCountdown && (
-                <div className="absolute inset-0 bg-[#000B13]/95 backdrop-blur-md flex items-center justify-center z-50 pointer-events-auto">
-                    <div className="flex flex-col items-center scale-110">
-                        <div className="relative w-44 h-44 flex items-center justify-center">
-                            <div className="absolute inset-0 rounded-full bg-[#00A3FF]/30 animate-ping" />
-                            <div className="absolute inset-2 rounded-full bg-[#00A3FF]/20 animate-[ping_2s_linear_infinite]" />
-                            <div className="relative w-40 h-40 rounded-full bg-gradient-primary p-1 shadow-[0_0_50px_rgba(0,163,255,0.3)]">
-                                <div className="w-full h-full rounded-full bg-[#0E0E12] flex items-center justify-center">
-                                    <span className="text-8xl font-bold text-white tabular-nums tracking-tighter">
-                                        {countdown}
-                                    </span>
-                                </div>
+    const pipWindowRef = useRef<Window | null>(null);
+    const timerRef = useRef<HTMLElement | null>(null);
+
+    const formattedTime = useMemo(() => {
+        return formatTime(recordingTime);
+    }, [recordingTime]);
+
+    useEffect(() => {
+        setPipSupported(
+            typeof window !== "undefined" &&
+                "documentPictureInPicture" in window
+        );
+    }, []);
+
+    useEffect(() => {
+        if (!pipActive || !timerRef.current) return;
+
+        timerRef.current.innerText = formattedTime;
+    }, [formattedTime, pipActive]);
+
+    useEffect(() => {
+        if (!isRecording && pipWindowRef.current) {
+            pipWindowRef.current.close();
+            pipWindowRef.current = null;
+            setPipActive(false);
+        }
+    }, [isRecording]);
+
+    const openFloatingTimer = async () => {
+        try {
+            // @ts-ignore
+            if (!window.documentPictureInPicture) return;
+
+            // @ts-ignore
+            const pipWindow = await window.documentPictureInPicture.requestWindow({
+                width: 320,
+                height: 120,
+            });
+
+            pipWindowRef.current = pipWindow;
+            setPipActive(true);
+
+            pipWindow.document.body.style.margin = "0";
+            pipWindow.document.body.style.background = "#09090B";
+            pipWindow.document.body.style.overflow = "hidden";
+            pipWindow.document.body.style.fontFamily =
+                "Inter, system-ui, sans-serif";
+
+            pipWindow.document.body.innerHTML = `
+                <div id="recorder-root" style="
+                    width:100%;
+                    height:100%;
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
+                    padding:16px;
+                    box-sizing:border-box;
+                    background:
+                        radial-gradient(circle at top left, rgba(239,68,68,0.18), transparent 40%),
+                        linear-gradient(135deg,#111827,#09090B);
+                ">
+                    <div style="
+                        width:100%;
+                        height:100%;
+                        border-radius:20px;
+                        border:1px solid rgba(255,255,255,0.08);
+                        background:rgba(17,24,39,0.85);
+                        backdrop-filter:blur(16px);
+                        display:flex;
+                        align-items:center;
+                        justify-content:space-between;
+                        padding:18px;
+                        box-sizing:border-box;
+                        color:white;
+                        box-shadow:
+                            0 10px 40px rgba(0,0,0,0.45),
+                            inset 0 1px 0 rgba(255,255,255,0.05);
+                    ">
+                        <div style="display:flex;align-items:center;gap:14px;">
+                            <div style="
+                                width:14px;
+                                height:14px;
+                                border-radius:999px;
+                                background:#ef4444;
+                                box-shadow:0 0 20px rgba(239,68,68,0.7);
+                                animation:pulse 1.2s infinite;
+                            "></div>
+
+                            <div style="display:flex;flex-direction:column;">
+                                <span style="
+                                    font-size:12px;
+                                    color:rgba(255,255,255,0.6);
+                                    font-weight:600;
+                                ">
+                                    Recording
+                                </span>
+
+                                <span id="pip-timer" style="
+                                    font-size:28px;
+                                    font-weight:700;
+                                    letter-spacing:-0.03em;
+                                ">
+                                    ${formattedTime}
+                                </span>
                             </div>
                         </div>
 
-                        <div className="text-center mt-12 space-y-3">
-                            <h2 className="text-3xl font-bold text-white animate-pulse tracking-tight">
-                                {t('countdown.title')}
-                            </h2>
-                            <p className="text-lg text-neutral-400 max-w-sm mx-auto px-4">
-                                {t('countdown.subtitle')}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {isRecording && (
-                <div className="absolute top-20 left-1/2 -translate-x-1/2 pointer-events-auto">
-                    <div className="flex items-center gap-4 bg-[#1E1E20] border border-white/10 rounded-full pl-5 pr-2 py-2 shadow-2xl">
-                        <div className="flex items-center gap-3 pr-2 border-r border-white/10">
-                            <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
-                            <span className="text-sm text-white font-medium">{t('recording.status')}</span>
-                            <span className="text-sm text-red-400 font-mono font-bold">
-                                {formatTime(recordingTime)}
-                            </span>
-                        </div>
-                        <button
-                            onClick={stopRecording}
-                            className="group flex items-center gap-3 px-4 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 hover:border-red-500/50 rounded-full transition-all"
-                            aria-label={t('recording.stop')}
-                        >
-                            <div className="flex items-center gap-2 text-red-400 text-sm font-medium">
-                                <div className="w-3 h-3 bg-red-500 rounded-sm group-hover:scale-110 transition-transform" />
-                                {t('recording.stop')}
-                            </div>
-                            <div className="flex items-center gap-1 text-[10px] bg-red-500/10 text-red-300 px-1.5 py-0.5 rounded border border-red-500/20">
-                                <kbd>Alt</kbd>
-                                <span>+</span>
-                                <kbd>D</kbd>
-                            </div>
+                        <button id="stop-btn" style="
+                            border:none;
+                            outline:none;
+                            cursor:pointer;
+                            background:#ef4444;
+                            color:white;
+                            border-radius:14px;
+                            padding:12px 18px;
+                            font-weight:700;
+                            font-size:13px;
+                            transition:all .2s ease;
+                            box-shadow:0 6px 20px rgba(239,68,68,0.35);
+                        ">
+                            Stop
                         </button>
                     </div>
                 </div>
-            )}
 
-            {isProcessing && (
-                <div className="absolute inset-0 bg-[#000B13]/95 backdrop-blur-md flex items-center justify-center pointer-events-auto z-50">
-                    <div className="text-center">
-                        <div className="relative w-20 h-20 mb-8 mx-auto">
-                            <div className="absolute inset-0 rounded-full border-4 border-white/5" />
-                            <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-[#00A3FF] border-r-[#00A3FF]/30 animate-spin shadow-[0_0_20px_rgba(0,163,255,0.2)]" />
-                            <div className="absolute inset-0 rounded-full bg-[#00A3FF]/5 blur-xl" />
+                <style>
+                    @keyframes pulse {
+                        0% { transform:scale(1); opacity:1; }
+                        50% { transform:scale(1.12); opacity:.7; }
+                        100% { transform:scale(1); opacity:1; }
+                    }
+                </style>
+            `;
+
+            timerRef.current =
+                pipWindow.document.getElementById("pip-timer");
+
+            const stopBtn =
+                pipWindow.document.getElementById("stop-btn");
+
+            stopBtn?.addEventListener("click", () => {
+                onStop();
+                pipWindow.close();
+            });
+
+            pipWindow.addEventListener("pagehide", () => {
+                setPipActive(false);
+                pipWindowRef.current = null;
+            });
+        } catch (err) {
+            console.error("PiP error:", err);
+        }
+    };
+
+    if (!isRecording) return null;
+
+    return (
+        <AnimatePresence>
+            <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="fixed top-5 left-1/2 -translate-x-1/2 z-[9999]"
+            >
+                <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/70 backdrop-blur-xl px-4 py-3 shadow-[0_10px_40px_rgba(0,0,0,0.45)]">
+                    <div className="flex items-center gap-2">
+                        <div className="relative">
+                            <div className="w-3 h-3 rounded-full bg-red-500" />
+
+                            <div className="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-60" />
                         </div>
 
-                        <div className="space-y-2">
-                            <p className="text-2xl font-semibold text-white tracking-tight">
-                                {t('processing.title')}
-                            </p>
-                            <p className="text-neutral-400 font-medium">
-                                {t('processing.subtitle')}
-                            </p>
+                        <div className="flex flex-col leading-none">
+                            <span className="text-[10px] uppercase tracking-[0.18em] text-white/45 font-semibold">
+                                {isPaused ? "Paused" : "Recording"}
+                            </span>
+
+                            <span className="text-white font-bold text-lg tabular-nums">
+                                {formattedTime}
+                            </span>
                         </div>
                     </div>
+
+                    <div className="w-px h-8 bg-white/10" />
+
+                    {pipSupported && (
+                        <button
+                            onClick={openFloatingTimer}
+                            className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-all ${
+                                pipActive
+                                    ? "bg-cyan-500/20 text-cyan-300 border border-cyan-400/20"
+                                    : "bg-white/5 hover:bg-white/10 text-white/80 border border-white/10"
+                            }`}
+                        >
+                            <Icon
+                                icon="solar:sidebar-minimalistic-bold"
+                                width="16"
+                            />
+
+                            Timer flotante
+                        </button>
+                    )}
+
+                    <button
+                        onClick={onStop}
+                        className="flex items-center gap-2 rounded-xl bg-red-500 hover:bg-red-400 transition-colors px-4 py-2 text-white font-semibold shadow-[0_8px_24px_rgba(239,68,68,0.35)]"
+                    >
+                        <Icon icon="solar:stop-bold" width="16" />
+
+                        Detener
+                    </button>
                 </div>
-            )}
-        </div>
+            </motion.div>
+        </AnimatePresence>
     );
 }
