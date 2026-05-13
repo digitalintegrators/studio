@@ -747,14 +747,11 @@ export function useScreenRecording() {
         }
 
         const displayMediaOptions: DisplayMediaStreamOptions & {
-          preferCurrentTab?: boolean;
-          selfBrowserSurface?: "include" | "exclude";
           systemAudio?: "include" | "exclude";
           surfaceSwitching?: "include" | "exclude";
+          selfBrowserSurface?: "include" | "exclude";
         } = {
-          video: {
-            displaySurface: "browser",
-          } as MediaTrackConstraints,
+          video: true,
           audio: setup.systemAudio
             ? ({
                 echoCancellation: false,
@@ -763,10 +760,9 @@ export function useScreenRecording() {
                 suppressLocalAudioPlayback: false,
               } as MediaTrackConstraints)
             : false,
-          preferCurrentTab: true,
-          selfBrowserSurface: "include",
           systemAudio: setup.systemAudio ? "include" : "exclude",
           surfaceSwitching: "include",
+          selfBrowserSurface: "include",
         };
 
         const rawScreenStream =
