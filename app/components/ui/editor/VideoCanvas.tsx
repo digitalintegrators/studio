@@ -235,6 +235,7 @@ export const VideoCanvas = forwardRef<
   const extendedCursorConfig = cursorConfig as ExtendedCursorConfig;
   const spotlightFragments = props.spotlightFragments ?? [];
   const maskFragments = props.maskFragments ?? [];
+  const selectedSpotlightFragmentId = props.selectedSpotlightFragmentId ?? null;
   const selectedMaskFragmentId = props.selectedMaskFragmentId ?? null;
   const isPlaying = props.isPlaying ?? false;
   const isSpotlightEditing = Boolean(selectedSpotlightFragmentId) && !isPlaying;
