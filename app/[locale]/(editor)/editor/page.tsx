@@ -57,6 +57,63 @@ const VideoCropperModal = lazy(() => import("@/app/components/ui/editor/VideoCro
 const ImageCropperModal = lazy(() => import("@/app/components/ui/editor/ImageCropperModal").then(mod => ({ default: mod.ImageCropperModal })));
 const PhotoEditorPlaceholder = lazy(() => import("@/app/components/ui/editor/PhotoEditorPlaceholder").then(mod => ({ default: mod.PhotoEditorPlaceholder })));
 
+const SPOTLIGHT_STORAGE_PREFIX = "openvid-spotlight-fragments";
+
+function getSpotlightStorageKey(videoId: string | null): string | null {
+    if (!videoId) return null;
+    return `${SPOTLIGHT_STORAGE_PREFIX}:${videoId}`;
+}
+
+function loadStoredSpotlightFragments(videoId: string | null): SpotlightFragment[] {
+    if (typeof window === "undefined") return [];
+
+    const key = getSpotlightStorageKey(videoId);
+    if (!key) return [];
+
+    try {
+        const raw = window.localStorage.getItem(key);
+        if (!raw) return [];
+
+        const parsed = JSON.parse(raw);
+
+        if (!Array.isArray(parsed)) return [];
+
+        return parsed.filter((fragment): fragment is SpotlightFragment => {
+            return (
+                fragment &&
+                typeof fragment.id === "string" &&
+                typeof fragment.startTime === "number" &&
+                typeof fragment.endTime === "number" &&
+                typeof fragment.x === "number" &&
+                typeof fragment.y === "number" &&
+                typeof fragment.width === "number" &&
+                typeof fragment.height === "number"
+            );
+        });
+    } catch (error) {
+        console.warn("Failed to load spotlight fragments:", error);
+        return [];
+    }
+}
+
+function saveStoredSpotlightFragments(videoId: string | null, fragments: SpotlightFragment[]): void {
+    if (typeof window === "undefined") return;
+
+    const key = getSpotlightStorageKey(videoId);
+    if (!key) return;
+
+    try {
+        if (fragments.length === 0) {
+            window.localStorage.removeItem(key);
+            return;
+        }
+
+        window.localStorage.setItem(key, JSON.stringify(fragments));
+    } catch (error) {
+        console.warn("Failed to save spotlight fragments:", error);
+    }
+}
+
 export default function Editor() {
     // Editor mode (video/photo) from URL params
     const { mode: editorMode, isVideoMode, isPhotoMode } = useEditorMode();
@@ -212,6 +269,12 @@ export default function Editor() {
     useEffect(() => {
         zoomFragmentsRef.current = zoomFragments;
     }, [zoomFragments]);
+
+    useEffect(() => {
+        if (!videoId) return;
+
+        saveStoredSpotlightFragments(videoId, spotlightFragments);
+    }, [videoId, spotlightFragments]);
 
     // Mockup state
     const [mockupId, setMockupId] = useState<string>("none");
@@ -953,7 +1016,7 @@ export default function Editor() {
         backgroundTab, selectedWallpaper, backgroundBlur, padding,
         roundedCorners, shadows, selectedImageUrl, backgroundColorConfig,
         aspectRatio, customDimensions, cropArea, trimRange,
-        zoomFragments, mockupId, mockupConfig, canvasElements,
+        zoomFragments, spotlightFragments, mockupId, mockupConfig, canvasElements,
         audioTracks, muteOriginalAudio, masterVolume, cameraConfig,
         videoTransform, cursorConfig, imageTransform, apply3DToBackground, imageMaskConfig, videoMaskConfig,
         setEditorState
@@ -974,6 +1037,7 @@ export default function Editor() {
         setCropArea(editorState.cropArea);
         setTrimRange(editorState.trimRange);
         setZoomFragments(editorState.zoomFragments);
+        setSpotlightFragments(editorState.spotlightFragments ?? []);
         setMockupId(editorState.mockupId);
         setMockupConfig(editorState.mockupConfig);
         setCanvasElements(editorState.canvasElements);
@@ -1507,6 +1571,8 @@ export default function Editor() {
 
             const defaultFragments = generateDefaultZoomFragments(uploadedData.duration);
             setZoomFragments(defaultFragments);
+            setSpotlightFragments(loadStoredSpotlightFragments(uploadedData.videoId));
+            setSelectedSpotlightFragmentId(null);
 
             setCurrentTime(0);
             setIsPlaying(false);
@@ -1584,6 +1650,8 @@ export default function Editor() {
 
                     const defaultFragments = generateDefaultZoomFragments(duration);
                     setZoomFragments(defaultFragments);
+                    setSpotlightFragments(loadStoredSpotlightFragments(videoId));
+                    setSelectedSpotlightFragmentId(null);
 
                     setCurrentTime(0);
                     setIsPlaying(false);
@@ -1820,6 +1888,8 @@ export default function Editor() {
                         setTrimRange({ start: 0, end: videoToLoad.duration });
                         const defaultFragments = generateDefaultZoomFragments(videoToLoad.duration);
                         setZoomFragments(defaultFragments);
+                        setSpotlightFragments(loadStoredSpotlightFragments(videoToLoad.videoId));
+                        setSelectedSpotlightFragmentId(null);
 
                         if ('aspectRatio' in videoToLoad) {
                             setAspectRatio(videoToLoad.aspectRatio || "auto");
@@ -2588,6 +2658,7 @@ export default function Editor() {
             setSelectedAudioTrackId(null);
             setSelectedVideoClipId(null);
             setSelectedElementId(null);
+            setActiveTool("zoom");
         }
     }, []);
 
@@ -2722,6 +2793,13 @@ export default function Editor() {
             if ((e.key === "Delete" || e.key === "Backspace") && selectedZoomFragmentId) {
                 e.preventDefault();
                 handleDeleteZoomFragment(selectedZoomFragmentId);
+                return;
+            }
+
+            if ((e.key === "Delete" || e.key === "Backspace") && selectedSpotlightFragmentId) {
+                e.preventDefault();
+                handleDeleteSpotlightFragment(selectedSpotlightFragmentId);
+                return;
             }
 
             if (e.key === "Escape") {
@@ -2745,7 +2823,7 @@ export default function Editor() {
 
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
-    }, [selectedElementId, selectedZoomFragmentId, selectedAudioTrackId, selectedVideoClipId, deleteCanvasElement, handleDeleteZoomFragment, handleDeleteAudioTrack, handleDeleteVideoClip, copySelectedElement, pasteElement, isPhotoMode, copiedElement, textToolActive]);
+    }, [selectedElementId, selectedZoomFragmentId, selectedSpotlightFragmentId, selectedAudioTrackId, selectedVideoClipId, deleteCanvasElement, handleDeleteZoomFragment, handleDeleteSpotlightFragment, handleDeleteAudioTrack, handleDeleteVideoClip, copySelectedElement, pasteElement, isPhotoMode, copiedElement, textToolActive]);
 
     useEffect(() => {
         const checkMobile = () => {
@@ -3022,6 +3100,222 @@ export default function Editor() {
                             }, 300);
                         }}
                     />
+
+                    {isVideoMode && selectedSpotlightFragment && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 12, scale: 0.98 }}
+                            className="absolute right-4 top-16 z-[80] w-[320px] rounded-2xl border border-amber-400/20 bg-[#111113]/95 p-4 text-white shadow-2xl backdrop-blur-xl"
+                        >
+                            <div className="mb-3 flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-400/15 text-amber-300">
+                                        <Icon icon="solar:flashlight-on-bold" width="18" />
+                                    </div>
+                                    <div>
+                                        <div className="text-sm font-semibold text-white">Spotlight</div>
+                                        <div className="text-[11px] text-white/45">Fragmento seleccionado</div>
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedSpotlightFragmentId(null)}
+                                    className="rounded-lg p-1.5 text-white/45 transition hover:bg-white/10 hover:text-white"
+                                    aria-label="Cerrar editor de spotlight"
+                                >
+                                    <Icon icon="solar:close-circle-bold" width="18" />
+                                </button>
+                            </div>
+
+                            <div className="space-y-3">
+                                <label className="block">
+                                    <span className="mb-1 block text-[11px] font-medium text-white/55">Nombre</span>
+                                    <input
+                                        value={selectedSpotlightFragment.label ?? "Spotlight"}
+                                        onChange={(event) => handleUpdateSpotlightFragment(selectedSpotlightFragment.id, { label: event.target.value })}
+                                        className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none transition focus:border-amber-300/50"
+                                    />
+                                </label>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                    <label className="block">
+                                        <span className="mb-1 block text-[11px] font-medium text-white/55">Inicio</span>
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            max={videoDuration}
+                                            step={0.1}
+                                            value={Number(selectedSpotlightFragment.startTime.toFixed(1))}
+                                            onChange={(event) => {
+                                                const startTime = Number(event.target.value);
+                                                const duration = selectedSpotlightFragment.endTime - selectedSpotlightFragment.startTime;
+                                                handleUpdateSpotlightFragment(selectedSpotlightFragment.id, {
+                                                    startTime,
+                                                    endTime: Math.min(videoDuration, startTime + duration),
+                                                });
+                                            }}
+                                            className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none transition focus:border-amber-300/50"
+                                        />
+                                    </label>
+
+                                    <label className="block">
+                                        <span className="mb-1 block text-[11px] font-medium text-white/55">Fin</span>
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            max={videoDuration}
+                                            step={0.1}
+                                            value={Number(selectedSpotlightFragment.endTime.toFixed(1))}
+                                            onChange={(event) => handleUpdateSpotlightFragment(selectedSpotlightFragment.id, { endTime: Number(event.target.value) })}
+                                            className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none transition focus:border-amber-300/50"
+                                        />
+                                    </label>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                    <label className="block">
+                                        <span className="mb-1 block text-[11px] font-medium text-white/55">X</span>
+                                        <input
+                                            type="range"
+                                            min={0}
+                                            max={100}
+                                            step={0.5}
+                                            value={selectedSpotlightFragment.x}
+                                            onChange={(event) => handleUpdateSpotlightFragment(selectedSpotlightFragment.id, { x: Number(event.target.value) })}
+                                            className="w-full accent-amber-400"
+                                        />
+                                    </label>
+
+                                    <label className="block">
+                                        <span className="mb-1 block text-[11px] font-medium text-white/55">Y</span>
+                                        <input
+                                            type="range"
+                                            min={0}
+                                            max={100}
+                                            step={0.5}
+                                            value={selectedSpotlightFragment.y}
+                                            onChange={(event) => handleUpdateSpotlightFragment(selectedSpotlightFragment.id, { y: Number(event.target.value) })}
+                                            className="w-full accent-amber-400"
+                                        />
+                                    </label>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                    <label className="block">
+                                        <span className="mb-1 block text-[11px] font-medium text-white/55">Ancho</span>
+                                        <input
+                                            type="range"
+                                            min={4}
+                                            max={100}
+                                            step={0.5}
+                                            value={selectedSpotlightFragment.width}
+                                            onChange={(event) => handleUpdateSpotlightFragment(selectedSpotlightFragment.id, { width: Number(event.target.value) })}
+                                            className="w-full accent-amber-400"
+                                        />
+                                    </label>
+
+                                    <label className="block">
+                                        <span className="mb-1 block text-[11px] font-medium text-white/55">Alto</span>
+                                        <input
+                                            type="range"
+                                            min={4}
+                                            max={100}
+                                            step={0.5}
+                                            value={selectedSpotlightFragment.height}
+                                            onChange={(event) => handleUpdateSpotlightFragment(selectedSpotlightFragment.id, { height: Number(event.target.value) })}
+                                            className="w-full accent-amber-400"
+                                        />
+                                    </label>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                    <label className="block">
+                                        <span className="mb-1 block text-[11px] font-medium text-white/55">Forma</span>
+                                        <select
+                                            value={selectedSpotlightFragment.shape}
+                                            onChange={(event) => handleUpdateSpotlightFragment(selectedSpotlightFragment.id, { shape: event.target.value as SpotlightFragment["shape"] })}
+                                            className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none transition focus:border-amber-300/50"
+                                        >
+                                            <option value="rounded">Redondeado</option>
+                                            <option value="rectangle">Rectángulo</option>
+                                            <option value="circle">Círculo</option>
+                                        </select>
+                                    </label>
+
+                                    <label className="block">
+                                        <span className="mb-1 block text-[11px] font-medium text-white/55">Radio</span>
+                                        <input
+                                            type="range"
+                                            min={0}
+                                            max={60}
+                                            step={1}
+                                            value={selectedSpotlightFragment.radius ?? 18}
+                                            onChange={(event) => handleUpdateSpotlightFragment(selectedSpotlightFragment.id, { radius: Number(event.target.value) })}
+                                            className="w-full accent-amber-400"
+                                        />
+                                    </label>
+                                </div>
+
+                                <label className="block">
+                                    <span className="mb-1 block text-[11px] font-medium text-white/55">Oscurecimiento</span>
+                                    <input
+                                        type="range"
+                                        min={0.1}
+                                        max={0.92}
+                                        step={0.01}
+                                        value={selectedSpotlightFragment.intensity}
+                                        onChange={(event) => handleUpdateSpotlightFragment(selectedSpotlightFragment.id, { intensity: Number(event.target.value) })}
+                                        className="w-full accent-amber-400"
+                                    />
+                                </label>
+
+                                <label className="block">
+                                    <span className="mb-1 block text-[11px] font-medium text-white/55">Blur</span>
+                                    <input
+                                        type="range"
+                                        min={0}
+                                        max={12}
+                                        step={0.5}
+                                        value={selectedSpotlightFragment.blur}
+                                        onChange={(event) => handleUpdateSpotlightFragment(selectedSpotlightFragment.id, { blur: Number(event.target.value) })}
+                                        className="w-full accent-amber-400"
+                                    />
+                                </label>
+
+                                <div className="flex items-center justify-between gap-2 pt-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const duration = selectedSpotlightFragment.endTime - selectedSpotlightFragment.startTime;
+                                            const copy = {
+                                                ...selectedSpotlightFragment,
+                                                id: `spotlight-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+                                                startTime: Math.min(videoDuration - 0.2, selectedSpotlightFragment.endTime),
+                                                endTime: Math.min(videoDuration, selectedSpotlightFragment.endTime + duration),
+                                            };
+
+                                            setSpotlightFragments((prev) => [...prev, copy].sort((a, b) => a.startTime - b.startTime));
+                                            setSelectedSpotlightFragmentId(copy.id);
+                                        }}
+                                        className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/75 transition hover:bg-white/10"
+                                    >
+                                        Duplicar
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => handleDeleteSpotlightFragment(selectedSpotlightFragment.id)}
+                                        className="rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-500/20"
+                                    >
+                                        Eliminar
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+
 
                     {/* Video mode: Show player controls and timeline */}
                     {isVideoMode && (
