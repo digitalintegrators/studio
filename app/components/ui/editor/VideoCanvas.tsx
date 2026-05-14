@@ -2444,7 +2444,7 @@ export const VideoCanvas = forwardRef<VideoCanvasHandle, ExtendedVideoCanvasProp
                                                 onSelectSpotlightFragment?.(activeSpotlightFragment.id);
                                             }}
                                         >
-                                            {activeSpotlightFragment.id === selectedSpotlightFragmentId && (
+                                            {activeSpotlightFragment && (
                                                 <>
                                                     <div className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/40 bg-amber-300 shadow-[0_0_18px_rgba(251,191,36,0.65)]" />
                                                     <div
