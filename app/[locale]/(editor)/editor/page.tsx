@@ -33,6 +33,8 @@ import { MOCKUPS } from "@/lib/mockup-data";
 import { gradientToCss, generateDefaultZoomFragments, createZoomFragment, ASPECT_RATIO_DIMENSIONS } from "@/types";
 import type { SpotlightFragment } from "@/types/spotlight.types";
 import { createSpotlightFragment, DEFAULT_SPOTLIGHT_DURATION } from "@/types/spotlight.types";
+import type { EditableMaskFragment } from "@/types/mask-fragment.types";
+import { createEditableMaskFragment, DEFAULT_MASK_FRAGMENT_DURATION } from "@/types/mask-fragment.types";
 import { ToolsSidebar } from "@/app/components/ui/editor/ToolsSidebar";
 import { MobileToolsMenu } from "@/app/components/ui/editor/MobileToolsMenu";
 import { MobileControlPanel } from "@/app/components/ui/editor/MobileControlPanel";
@@ -111,6 +113,63 @@ function saveStoredSpotlightFragments(videoId: string | null, fragments: Spotlig
         window.localStorage.setItem(key, JSON.stringify(fragments));
     } catch (error) {
         console.warn("Failed to save spotlight fragments:", error);
+    }
+}
+
+const MASK_STORAGE_PREFIX = "openvid-mask-fragments";
+
+function getMaskStorageKey(videoId: string | null): string | null {
+    if (!videoId) return null;
+    return `${MASK_STORAGE_PREFIX}:${videoId}`;
+}
+
+function loadStoredMaskFragments(videoId: string | null): EditableMaskFragment[] {
+    if (typeof window === "undefined") return [];
+
+    const key = getMaskStorageKey(videoId);
+    if (!key) return [];
+
+    try {
+        const raw = window.localStorage.getItem(key);
+        if (!raw) return [];
+
+        const parsed = JSON.parse(raw);
+
+        if (!Array.isArray(parsed)) return [];
+
+        return parsed.filter((fragment): fragment is EditableMaskFragment => {
+            return (
+                fragment &&
+                typeof fragment.id === "string" &&
+                typeof fragment.startTime === "number" &&
+                typeof fragment.endTime === "number" &&
+                typeof fragment.x === "number" &&
+                typeof fragment.y === "number" &&
+                typeof fragment.width === "number" &&
+                typeof fragment.height === "number"
+            );
+        });
+    } catch (error) {
+        console.warn("Failed to load mask fragments:", error);
+        return [];
+    }
+}
+
+function saveStoredMaskFragments(videoId: string | null, fragments: EditableMaskFragment[]): void {
+    if (typeof window === "undefined") return;
+
+    const key = getMaskStorageKey(videoId);
+    if (!key) return;
+
+    try {
+        if (fragments.length === 0) {
+            window.localStorage.removeItem(key);
+            return;
+        }
+
+        window.localStorage.setItem(key, JSON.stringify(fragments));
+    } catch (error) {
+        console.warn("Failed to save mask fragments:", error);
     }
 }
 
@@ -264,6 +323,10 @@ export default function Editor() {
     const [spotlightFragments, setSpotlightFragments] = useState<SpotlightFragment[]>([]);
     const [selectedSpotlightFragmentId, setSelectedSpotlightFragmentId] = useState<string | null>(null);
 
+    // Editable mask fragments state
+    const [maskFragments, setMaskFragments] = useState<EditableMaskFragment[]>([]);
+    const [selectedMaskFragmentId, setSelectedMaskFragmentId] = useState<string | null>(null);
+
     // Ref to always have the latest zoomFragments value (prevents stale closures)
     const zoomFragmentsRef = useRef<ZoomFragment[]>([]);
     useEffect(() => {
@@ -275,6 +338,12 @@ export default function Editor() {
 
         saveStoredSpotlightFragments(videoId, spotlightFragments);
     }, [videoId, spotlightFragments]);
+
+    useEffect(() => {
+        if (!videoId) return;
+
+        saveStoredMaskFragments(videoId, maskFragments);
+    }, [videoId, maskFragments]);
 
     // Mockup state
     const [mockupId, setMockupId] = useState<string>("none");
@@ -1573,6 +1642,8 @@ export default function Editor() {
             setZoomFragments(defaultFragments);
             setSpotlightFragments(loadStoredSpotlightFragments(uploadedData.videoId));
             setSelectedSpotlightFragmentId(null);
+            setMaskFragments(loadStoredMaskFragments(uploadedData.videoId));
+            setSelectedMaskFragmentId(null);
 
             setCurrentTime(0);
             setIsPlaying(false);
@@ -1652,6 +1723,8 @@ export default function Editor() {
                     setZoomFragments(defaultFragments);
                     setSpotlightFragments(loadStoredSpotlightFragments(videoId));
                     setSelectedSpotlightFragmentId(null);
+                    setMaskFragments(loadStoredMaskFragments(videoId));
+                    setSelectedMaskFragmentId(null);
 
                     setCurrentTime(0);
                     setIsPlaying(false);
@@ -1890,6 +1963,8 @@ export default function Editor() {
                         setZoomFragments(defaultFragments);
                         setSpotlightFragments(loadStoredSpotlightFragments(videoToLoad.videoId));
                         setSelectedSpotlightFragmentId(null);
+                        setMaskFragments(loadStoredMaskFragments(videoToLoad.videoId));
+                        setSelectedMaskFragmentId(null);
 
                         if ('aspectRatio' in videoToLoad) {
                             setAspectRatio(videoToLoad.aspectRatio || "auto");
@@ -2597,12 +2672,11 @@ export default function Editor() {
     // Zoom fragment handlers
     const handleSelectZoomFragment = useCallback((fragmentId: string | null) => {
         setSelectedZoomFragmentId(fragmentId);
-
         if (fragmentId) {
-            setActiveTool("zoom");
             setSelectedAudioTrackId(null);
             setSelectedVideoClipId(null);
             setSelectedSpotlightFragmentId(null);
+            setSelectedMaskFragmentId(null);
             setSelectedElementId(null);
         }
     }, []);
@@ -2655,34 +2729,15 @@ export default function Editor() {
     const handleSelectSpotlightFragment = useCallback((fragmentId: string | null) => {
         setSelectedSpotlightFragmentId(fragmentId);
 
-        if (!fragmentId) return;
-
-        const fragment = spotlightFragments.find((item) => item.id === fragmentId);
-
-        if (fragment) {
-            const targetTime = Math.max(0, Math.min(videoDuration, fragment.startTime + 0.05));
-
-            setIsPlaying(false);
-            setCurrentTime(targetTime);
-            setScrubTime(targetTime);
-            scrubTimeRef.current = targetTime;
-
-            if (videoRef.current) {
-                videoRef.current.pause();
-                videoRef.current.currentTime = targetTime;
-            }
-
-            window.requestAnimationFrame(() => {
-                canvasRef.current?.drawFrame?.();
-            });
+        if (fragmentId) {
+            setSelectedZoomFragmentId(null);
+            setSelectedAudioTrackId(null);
+            setSelectedVideoClipId(null);
+            setSelectedElementId(null);
+            setSelectedMaskFragmentId(null);
+            setActiveTool("zoom");
         }
-
-        setActiveTool("spotlight");
-        setSelectedZoomFragmentId(null);
-        setSelectedAudioTrackId(null);
-        setSelectedVideoClipId(null);
-        setSelectedElementId(null);
-    }, [spotlightFragments, videoDuration]);
+    }, []);
 
     const handleAddSpotlightFragment = useCallback((startTime: number) => {
         const safeStart = Math.max(0, Math.min(videoDuration, startTime));
@@ -2694,26 +2749,9 @@ export default function Editor() {
 
         setSpotlightFragments((prev) => [...prev, newFragment].sort((a, b) => a.startTime - b.startTime));
         setSelectedSpotlightFragmentId(newFragment.id);
+        setSelectedMaskFragmentId(null);
         setSelectedZoomFragmentId(null);
-        setSelectedAudioTrackId(null);
-        setSelectedVideoClipId(null);
-        setSelectedElementId(null);
-        setActiveTool("spotlight");
-
-        const targetTime = Math.max(0, Math.min(videoDuration, newFragment.startTime + 0.05));
-        setIsPlaying(false);
-        setCurrentTime(targetTime);
-        setScrubTime(targetTime);
-        scrubTimeRef.current = targetTime;
-
-        if (videoRef.current) {
-            videoRef.current.pause();
-            videoRef.current.currentTime = targetTime;
-        }
-
-        window.requestAnimationFrame(() => {
-            canvasRef.current?.drawFrame?.();
-        });
+        setActiveTool("zoom");
     }, [videoDuration]);
 
     const handleUpdateSpotlightFragment = useCallback((fragmentId: string, updates: Partial<SpotlightFragment>) => {
@@ -2741,6 +2779,93 @@ export default function Editor() {
     const selectedSpotlightFragment = useMemo(() =>
         spotlightFragments.find((fragment) => fragment.id === selectedSpotlightFragmentId) || null,
         [spotlightFragments, selectedSpotlightFragmentId]
+    );
+
+    const handleSelectMaskFragment = useCallback((fragmentId: string | null) => {
+        setSelectedMaskFragmentId(fragmentId);
+
+        if (fragmentId) {
+            const fragment = maskFragments.find((item) => item.id === fragmentId);
+
+            if (fragment) {
+                const targetTime = Math.max(0, fragment.startTime + 0.05);
+                setCurrentTime(targetTime);
+                setScrubTime(targetTime);
+
+                if (videoRef.current) {
+                    videoRef.current.currentTime = targetTime;
+                }
+
+                canvasRef.current?.drawFrame?.();
+            }
+
+            setSelectedZoomFragmentId(null);
+            setSelectedAudioTrackId(null);
+            setSelectedVideoClipId(null);
+            setSelectedElementId(null);
+            setSelectedSpotlightFragmentId(null);
+            setActiveTool("zoom");
+        }
+    }, [maskFragments]);
+
+    const handleAddMaskFragment = useCallback((startTime: number) => {
+        const safeStart = Math.max(0, Math.min(videoDuration, startTime));
+        const duration = Math.min(DEFAULT_MASK_FRAGMENT_DURATION, Math.max(0.5, videoDuration - safeStart));
+
+        if (duration <= 0) return;
+
+        const newFragment = createEditableMaskFragment(safeStart, duration);
+
+        setMaskFragments((prev) => [...prev, newFragment].sort((a, b) => a.startTime - b.startTime));
+        setSelectedMaskFragmentId(newFragment.id);
+        setSelectedSpotlightFragmentId(null);
+        setSelectedZoomFragmentId(null);
+        setActiveTool("zoom");
+
+        const targetTime = Math.max(0, safeStart + 0.05);
+        setCurrentTime(targetTime);
+        setScrubTime(targetTime);
+
+        if (videoRef.current) {
+            videoRef.current.currentTime = targetTime;
+        }
+
+        window.setTimeout(() => {
+            canvasRef.current?.drawFrame?.();
+        }, 0);
+    }, [videoDuration]);
+
+    const handleUpdateMaskFragment = useCallback((fragmentId: string, updates: Partial<EditableMaskFragment>) => {
+        setMaskFragments((prev) => prev.map((fragment) => {
+            if (fragment.id !== fragmentId) return fragment;
+
+            const next = { ...fragment, ...updates };
+            const minDuration = 0.2;
+
+            next.startTime = Math.max(0, Math.min(videoDuration, next.startTime));
+            next.endTime = Math.max(next.startTime + minDuration, Math.min(videoDuration, next.endTime));
+            next.x = Math.max(0, Math.min(100, next.x));
+            next.y = Math.max(0, Math.min(100, next.y));
+            next.width = Math.max(4, Math.min(100, next.width));
+            next.height = Math.max(4, Math.min(100, next.height));
+            next.opacity = Math.max(0, Math.min(0.95, next.opacity));
+            next.blur = Math.max(0, Math.min(24, next.blur));
+
+            return next;
+        }).sort((a, b) => a.startTime - b.startTime));
+    }, [videoDuration]);
+
+    const handleDeleteMaskFragment = useCallback((fragmentId: string) => {
+        setMaskFragments((prev) => prev.filter((fragment) => fragment.id !== fragmentId));
+
+        if (selectedMaskFragmentId === fragmentId) {
+            setSelectedMaskFragmentId(null);
+        }
+    }, [selectedMaskFragmentId]);
+
+    const selectedMaskFragment = useMemo(() =>
+        maskFragments.find((fragment) => fragment.id === selectedMaskFragmentId) || null,
+        [maskFragments, selectedMaskFragmentId]
     );
 
     // Calcular el CSS del background actual - memoized
@@ -2856,8 +2981,6 @@ export default function Editor() {
                     setSelectedAudioTrackId(null);
                 } else if (selectedZoomFragmentId) {
                     setSelectedZoomFragmentId(null);
-                } else if (selectedSpotlightFragmentId) {
-                    setSelectedSpotlightFragmentId(null);
                 }
             }
 
@@ -2909,29 +3032,7 @@ export default function Editor() {
                 <div className="hidden lg:flex">
                     <ToolsSidebar
                         activeTool={activeTool}
-                        onToolChange={(tool) => {
-                            setActiveTool(tool);
-
-                            if (tool !== "spotlight") {
-                                setSelectedSpotlightFragmentId(null);
-                            }
-
-                            if (tool !== "zoom") {
-                                setSelectedZoomFragmentId(null);
-                            }
-
-                            if (tool !== "audio") {
-                                setSelectedAudioTrackId(null);
-                            }
-
-                            if (tool !== "videos") {
-                                setSelectedVideoClipId(null);
-                            }
-
-                            if (tool !== "elements") {
-                                setSelectedElementId(null);
-                            }
-                        }}
+                        onToolChange={setActiveTool}
                         onVideoUpload={handleVideoUpload}
                         isUploading={isUploading}
                         selectedZoomFragmentId={selectedZoomFragmentId}
@@ -3143,9 +3244,12 @@ export default function Editor() {
                         isRecordedVideo={isRecordedVideo}
                         spotlightFragments={spotlightFragments}
                         selectedSpotlightFragmentId={selectedSpotlightFragmentId}
-                        isSpotlightEditing={activeTool === "spotlight" && !!selectedSpotlightFragmentId && !isPlaying}
                         onSelectSpotlightFragment={handleSelectSpotlightFragment}
                         onUpdateSpotlightFragment={handleUpdateSpotlightFragment}
+                        maskFragments={maskFragments}
+                        selectedMaskFragmentId={selectedMaskFragmentId}
+                        onSelectMaskFragment={handleSelectMaskFragment}
+                        onUpdateMaskFragment={handleUpdateMaskFragment}
                         onCameraConfigChange={handleCameraConfigChange}
                         onCameraClick={handleCameraClick}
                         onEnded={() => {
@@ -3168,7 +3272,7 @@ export default function Editor() {
                         }}
                     />
 
-                    {isVideoMode && activeTool === "spotlight" && selectedSpotlightFragment && (
+                    {isVideoMode && selectedSpotlightFragment && (
                         <motion.div
                             initial={{ opacity: 0, y: 12, scale: 0.98 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -3365,23 +3469,6 @@ export default function Editor() {
 
                                             setSpotlightFragments((prev) => [...prev, copy].sort((a, b) => a.startTime - b.startTime));
                                             setSelectedSpotlightFragmentId(copy.id);
-                                            setSelectedZoomFragmentId(null);
-                                            setActiveTool("spotlight");
-
-                                            const targetTime = Math.max(0, Math.min(videoDuration, copy.startTime + 0.05));
-                                            setIsPlaying(false);
-                                            setCurrentTime(targetTime);
-                                            setScrubTime(targetTime);
-                                            scrubTimeRef.current = targetTime;
-
-                                            if (videoRef.current) {
-                                                videoRef.current.pause();
-                                                videoRef.current.currentTime = targetTime;
-                                            }
-
-                                            window.requestAnimationFrame(() => {
-                                                canvasRef.current?.drawFrame?.();
-                                            });
                                         }}
                                         className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/75 transition hover:bg-white/10"
                                     >
@@ -3400,6 +3487,223 @@ export default function Editor() {
                         </motion.div>
                     )}
 
+
+
+                    {isVideoMode && selectedMaskFragment && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 12, scale: 0.98 }}
+                            className="absolute right-4 top-16 z-[80] w-[320px] rounded-2xl border border-fuchsia-400/20 bg-[#111113]/95 p-4 text-white shadow-2xl backdrop-blur-xl"
+                        >
+                            <div className="mb-3 flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-fuchsia-400/15 text-fuchsia-300">
+                                        <Icon icon="solar:mask-happly-bold" width="18" />
+                                    </div>
+                                    <div>
+                                        <div className="text-sm font-semibold text-white">Máscara editable</div>
+                                        <div className="text-[11px] text-white/45">Fragmento seleccionado</div>
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedMaskFragmentId(null)}
+                                    className="rounded-lg p-1.5 text-white/45 transition hover:bg-white/10 hover:text-white"
+                                    aria-label="Cerrar editor de máscara"
+                                >
+                                    <Icon icon="solar:close-circle-bold" width="18" />
+                                </button>
+                            </div>
+
+                            <div className="space-y-3">
+                                <label className="block">
+                                    <span className="mb-1 block text-[11px] font-medium text-white/55">Nombre</span>
+                                    <input
+                                        value={selectedMaskFragment.label ?? "Máscara"}
+                                        onChange={(event) => handleUpdateMaskFragment(selectedMaskFragment.id, { label: event.target.value })}
+                                        className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none transition focus:border-fuchsia-300/50"
+                                    />
+                                </label>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                    <label className="block">
+                                        <span className="mb-1 block text-[11px] font-medium text-white/55">Inicio</span>
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            max={videoDuration}
+                                            step={0.1}
+                                            value={Number(selectedMaskFragment.startTime.toFixed(1))}
+                                            onChange={(event) => {
+                                                const startTime = Number(event.target.value);
+                                                const duration = selectedMaskFragment.endTime - selectedMaskFragment.startTime;
+                                                handleUpdateMaskFragment(selectedMaskFragment.id, {
+                                                    startTime,
+                                                    endTime: Math.min(videoDuration, startTime + duration),
+                                                });
+                                            }}
+                                            className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none transition focus:border-fuchsia-300/50"
+                                        />
+                                    </label>
+
+                                    <label className="block">
+                                        <span className="mb-1 block text-[11px] font-medium text-white/55">Fin</span>
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            max={videoDuration}
+                                            step={0.1}
+                                            value={Number(selectedMaskFragment.endTime.toFixed(1))}
+                                            onChange={(event) => handleUpdateMaskFragment(selectedMaskFragment.id, { endTime: Number(event.target.value) })}
+                                            className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none transition focus:border-fuchsia-300/50"
+                                        />
+                                    </label>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                    <label className="block">
+                                        <span className="mb-1 block text-[11px] font-medium text-white/55">X</span>
+                                        <input
+                                            type="range"
+                                            min={0}
+                                            max={100}
+                                            step={0.5}
+                                            value={selectedMaskFragment.x}
+                                            onChange={(event) => handleUpdateMaskFragment(selectedMaskFragment.id, { x: Number(event.target.value) })}
+                                            className="w-full accent-fuchsia-400"
+                                        />
+                                    </label>
+
+                                    <label className="block">
+                                        <span className="mb-1 block text-[11px] font-medium text-white/55">Y</span>
+                                        <input
+                                            type="range"
+                                            min={0}
+                                            max={100}
+                                            step={0.5}
+                                            value={selectedMaskFragment.y}
+                                            onChange={(event) => handleUpdateMaskFragment(selectedMaskFragment.id, { y: Number(event.target.value) })}
+                                            className="w-full accent-fuchsia-400"
+                                        />
+                                    </label>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                    <label className="block">
+                                        <span className="mb-1 block text-[11px] font-medium text-white/55">Ancho</span>
+                                        <input
+                                            type="range"
+                                            min={4}
+                                            max={100}
+                                            step={0.5}
+                                            value={selectedMaskFragment.width}
+                                            onChange={(event) => handleUpdateMaskFragment(selectedMaskFragment.id, { width: Number(event.target.value) })}
+                                            className="w-full accent-fuchsia-400"
+                                        />
+                                    </label>
+
+                                    <label className="block">
+                                        <span className="mb-1 block text-[11px] font-medium text-white/55">Alto</span>
+                                        <input
+                                            type="range"
+                                            min={4}
+                                            max={100}
+                                            step={0.5}
+                                            value={selectedMaskFragment.height}
+                                            onChange={(event) => handleUpdateMaskFragment(selectedMaskFragment.id, { height: Number(event.target.value) })}
+                                            className="w-full accent-fuchsia-400"
+                                        />
+                                    </label>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                    <label className="block">
+                                        <span className="mb-1 block text-[11px] font-medium text-white/55">Forma</span>
+                                        <select
+                                            value={selectedMaskFragment.shape}
+                                            onChange={(event) => handleUpdateMaskFragment(selectedMaskFragment.id, { shape: event.target.value as EditableMaskFragment["shape"] })}
+                                            className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none transition focus:border-fuchsia-300/50"
+                                        >
+                                            <option value="rounded">Redondeado</option>
+                                            <option value="rectangle">Rectángulo</option>
+                                            <option value="circle">Círculo</option>
+                                        </select>
+                                    </label>
+
+                                    <label className="block">
+                                        <span className="mb-1 block text-[11px] font-medium text-white/55">Radio</span>
+                                        <input
+                                            type="range"
+                                            min={0}
+                                            max={60}
+                                            step={1}
+                                            value={selectedMaskFragment.radius ?? 18}
+                                            onChange={(event) => handleUpdateMaskFragment(selectedMaskFragment.id, { radius: Number(event.target.value) })}
+                                            className="w-full accent-fuchsia-400"
+                                        />
+                                    </label>
+                                </div>
+
+                                <label className="block">
+                                    <span className="mb-1 block text-[11px] font-medium text-white/55">Opacidad</span>
+                                    <input
+                                        type="range"
+                                        min={0.1}
+                                        max={0.95}
+                                        step={0.01}
+                                        value={selectedMaskFragment.opacity}
+                                        onChange={(event) => handleUpdateMaskFragment(selectedMaskFragment.id, { opacity: Number(event.target.value) })}
+                                        className="w-full accent-fuchsia-400"
+                                    />
+                                </label>
+
+                                <label className="block">
+                                    <span className="mb-1 block text-[11px] font-medium text-white/55">Blur</span>
+                                    <input
+                                        type="range"
+                                        min={0}
+                                        max={24}
+                                        step={0.5}
+                                        value={selectedMaskFragment.blur}
+                                        onChange={(event) => handleUpdateMaskFragment(selectedMaskFragment.id, { blur: Number(event.target.value) })}
+                                        className="w-full accent-fuchsia-400"
+                                    />
+                                </label>
+
+                                <div className="flex items-center justify-between gap-2 pt-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const duration = selectedMaskFragment.endTime - selectedMaskFragment.startTime;
+                                            const copy = {
+                                                ...selectedMaskFragment,
+                                                id: `mask-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+                                                startTime: Math.min(videoDuration - 0.2, selectedMaskFragment.endTime),
+                                                endTime: Math.min(videoDuration, selectedMaskFragment.endTime + duration),
+                                            };
+
+                                            setMaskFragments((prev) => [...prev, copy].sort((a, b) => a.startTime - b.startTime));
+                                            setSelectedMaskFragmentId(copy.id);
+                                            setSelectedSpotlightFragmentId(null);
+                                        }}
+                                        className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/75 transition hover:bg-white/10"
+                                    >
+                                        Duplicar
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => handleDeleteMaskFragment(selectedMaskFragment.id)}
+                                        className="rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-500/20"
+                                    >
+                                        Eliminar
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
 
                     {/* Video mode: Show player controls and timeline */}
                     {isVideoMode && (
@@ -3453,6 +3757,11 @@ export default function Editor() {
                                     onSelectSpotlightFragment={handleSelectSpotlightFragment}
                                     onAddSpotlightFragment={handleAddSpotlightFragment}
                                     onUpdateSpotlightFragment={handleUpdateSpotlightFragment}
+                                    maskFragments={maskFragments}
+                                    selectedMaskFragmentId={selectedMaskFragmentId}
+                                    onSelectMaskFragment={handleSelectMaskFragment}
+                                    onAddMaskFragment={handleAddMaskFragment}
+                                    onUpdateMaskFragment={handleUpdateMaskFragment}
                                     audioTracks={audioTracks}
                                     uploadedAudios={uploadedAudios}
                                     selectedAudioTrackId={selectedAudioTrackId}
@@ -3492,29 +3801,7 @@ export default function Editor() {
 
             <MobileToolsMenu
                 activeTool={activeTool}
-                onToolChange={(tool) => {
-                    setActiveTool(tool);
-
-                    if (tool !== "spotlight") {
-                        setSelectedSpotlightFragmentId(null);
-                    }
-
-                    if (tool !== "zoom") {
-                        setSelectedZoomFragmentId(null);
-                    }
-
-                    if (tool !== "audio") {
-                        setSelectedAudioTrackId(null);
-                    }
-
-                    if (tool !== "videos") {
-                        setSelectedVideoClipId(null);
-                    }
-
-                    if (tool !== "elements") {
-                        setSelectedElementId(null);
-                    }
-                }}
+                onToolChange={setActiveTool}
                 onVideoUpload={handleVideoUpload}
                 isUploading={isUploading}
                 onOpenToolPanel={() => setIsMobileControlPanelOpen(true)}
