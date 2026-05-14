@@ -784,6 +784,7 @@ export function Timeline({
                                                 isSelected={fragment.id === selectedMaskFragmentId}
                                                 contentWidth={contentWidth}
                                                 videoDuration={validDuration}
+                                                currentTime={currentTime}
                                                 otherFragments={maskFragments.filter((item) => item.id !== fragment.id)}
                                                 onSelect={() => onSelectMaskFragment?.(fragment.id)}
                                                 onUpdate={(updates) => onUpdateMaskFragment?.(fragment.id, updates)}
