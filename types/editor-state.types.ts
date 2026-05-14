@@ -5,6 +5,7 @@ import type {
     CropArea,
     ZoomFragment,
     AudioTrack,
+    SpotlightFragment,
 } from "@/types";
 
 import type { TrimRange } from "@/types/timeline.types";
@@ -39,6 +40,7 @@ export interface EditorState {
     cropArea: CropArea | undefined;
     trimRange: TrimRange;
     zoomFragments: ZoomFragment[];
+    spotlightFragments: SpotlightFragment[];
     mockupId: string;
     mockupConfig: MockupConfig;
     canvasElements: CanvasElement[];
@@ -85,6 +87,7 @@ export function createInitialEditorState(
         },
 
         zoomFragments: [],
+        spotlightFragments: [],
 
         mockupId: "none",
 
