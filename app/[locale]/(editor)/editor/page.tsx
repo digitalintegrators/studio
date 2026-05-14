@@ -2867,7 +2867,17 @@ export default function Editor() {
                 <div className="hidden lg:flex">
                     <ToolsSidebar
                         activeTool={activeTool}
-                        onToolChange={setActiveTool}
+                        onToolChange={(tool) => {
+                            setActiveTool(tool);
+
+                            if (tool !== "spotlight") {
+                                setSelectedSpotlightFragmentId(null);
+                            }
+
+                            if (tool !== "zoom") {
+                                setSelectedZoomFragmentId(null);
+                            }
+                        }}
                         onVideoUpload={handleVideoUpload}
                         isUploading={isUploading}
                         selectedZoomFragmentId={selectedZoomFragmentId}
@@ -3103,7 +3113,9 @@ export default function Editor() {
                         }}
                     />
 
-                    {isVideoMode && selectedSpotlightFragment && (
+                    {isVideoMode &&
+                        activeTool === "spotlight" &&
+                        selectedSpotlightFragment && (
                         <motion.div
                             initial={{ opacity: 0, y: 12, scale: 0.98 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
