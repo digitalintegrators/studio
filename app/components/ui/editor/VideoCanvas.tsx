@@ -2423,11 +2423,7 @@ export const VideoCanvas = forwardRef<VideoCanvasHandle, ExtendedVideoCanvasProp
                                             role="button"
                                             aria-label="Mover spotlight"
                                             tabIndex={0}
-                                            className={`absolute border shadow-[0_0_70px_rgba(255,255,255,0.22)] ${
-                                                activeSpotlightFragment.id === selectedSpotlightFragmentId
-                                                    ? "pointer-events-auto cursor-move border-amber-300/95 ring-2 ring-amber-300/45"
-                                                    : "border-white/15"
-                                            }`}
+                                            className="absolute border shadow-[0_0_70px_rgba(255,255,255,0.22)] pointer-events-auto cursor-move border-amber-300/95 ring-2 ring-amber-300/45"
                                             style={{
                                                 left: `${activeSpotlightFragment.x}%`,
                                                 top: `${activeSpotlightFragment.y}%`,
