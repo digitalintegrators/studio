@@ -3242,6 +3242,7 @@ export default function Editor() {
                         cursorConfig={cursorConfig}
                         cursorData={cursorData}
                         isRecordedVideo={isRecordedVideo}
+                        isPlaying={isPlaying}
                         spotlightFragments={spotlightFragments}
                         selectedSpotlightFragmentId={selectedSpotlightFragmentId}
                         onSelectSpotlightFragment={handleSelectSpotlightFragment}
@@ -3489,7 +3490,7 @@ export default function Editor() {
 
 
 
-                    {isVideoMode && selectedMaskFragment && (
+                    {isVideoMode && !isPlaying && selectedMaskFragment && (
                         <motion.div
                             initial={{ opacity: 0, y: 12, scale: 0.98 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
