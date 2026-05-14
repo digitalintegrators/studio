@@ -9,12 +9,14 @@ import LabelSidebar from "./LabelSidebar";
 import { ZoomFragmentTrackItem, findValidFragmentPosition } from "./ZoomFragmentTrackItem";
 import { AudioFragmentTrackItem } from "./AudioFragmentTrackItem";
 import { VideoClipTrackItem } from "./VideoClipTrackItem";
+import { SpotlightFragmentTrackItem } from "./SpotlightFragmentTrackItem";
 import { Icon } from "@iconify/react";
 import { useTranslations } from "next-intl";
 import { useVideoThumbnails } from "@/hooks/useVideoThumbnails";
 import { useAudioWaveform } from "@/hooks/useAudioWaveform";
 
 const DEFAULT_ZOOM_FRAGMENT_DURATION = 2;
+const DEFAULT_SPOTLIGHT_FRAGMENT_DURATION = 2;
 
 export function Timeline({
     videoDuration,
@@ -40,6 +42,12 @@ export function Timeline({
     onAddZoomFragment,
     onUpdateZoomFragment,
     onActivateZoomTool,
+    // Spotlight props
+    spotlightFragments = [],
+    selectedSpotlightFragmentId,
+    onSelectSpotlightFragment,
+    onAddSpotlightFragment,
+    onUpdateSpotlightFragment,
     // Audio props
     audioTracks = [],
     uploadedAudios = [],
@@ -55,6 +63,7 @@ export function Timeline({
     const [isDragging, setIsDragging] = useState(false);
     const [isDraggingTrim, setIsDraggingTrim] = useState<'start' | 'end' | null>(null);
     const [isDraggingZoomFragment, setIsDraggingZoomFragment] = useState(false);
+    const [isDraggingSpotlightFragment, setIsDraggingSpotlightFragment] = useState(false);
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [isDraggingVideoClip, setIsDraggingVideoClip] = useState(false);
     const [isOverFragment, setIsOverFragment] = useState(false);
@@ -63,7 +72,9 @@ export function Timeline({
     const rafIdRef = useRef<number | null>(null);
     const isSeekingRef = useRef<boolean>(false);
     const [isHoveringZoomRow, setIsHoveringZoomRow] = useState(false);
+    const [isHoveringSpotlightRow, setIsHoveringSpotlightRow] = useState(false);
     const [ghostX, setGhostX] = useState(0);
+    const [spotlightGhostX, setSpotlightGhostX] = useState(0);
     const validDuration = useMemo(() => {
         if (videoClips.length > 0) {
             // Duración total = fin del último clip
@@ -347,11 +358,11 @@ export function Timeline({
 
     return (
         <div ref={containerRef} className="flex flex-col w-full">
-            <div className="h-38 shrink-0 bg-[#0D0D11] border-t border-white/10 flex flex-col font-mono text-[10px]">
+            <div className="h-48 shrink-0 bg-[#0D0D11] border-t border-white/10 flex flex-col font-mono text-[10px]">
                 <div className="flex-1 flex flex-col relative overflow-hidden">
 
                     {/* Label sidebar */}
-                    <LabelSidebar audioTracksCount={audioTracks.length} />
+                    <LabelSidebar audioTracksCount={audioTracks.length} spotlightTracksCount={spotlightFragments.length} />
                     {/* Scrollable content */}
                     <div
                         ref={trackRef}
@@ -681,6 +692,77 @@ export function Timeline({
                                                     <div className="w-full h-full rounded border border-dashed border-blue-400/50 bg-blue-500/10 flex flex-col items-center justify-center gap-0.5">
                                                         <Icon icon="qlementine-icons:zoom-12" width="12" height="12" className="text-blue-400" aria-hidden="true" />
                                                         <span className="text-[8px] font-mono text-blue-400/60">+ Zoom</span>
+                                                    </div>
+                                                </motion.div>
+                                            );
+                                        })()}
+                                    </div>
+                                </div>
+
+
+                                {/* Spotlight track */}
+                                <div
+                                    className="h-10 shrink-0 flex items-center border-t border-white/5 relative bg-[#181107]"
+                                    onMouseMove={(e) => {
+                                        if (isDraggingSpotlightFragment) return;
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        setSpotlightGhostX(e.clientX - rect.left);
+                                        setIsHoveringSpotlightRow(true);
+                                    }}
+                                    onMouseLeave={() => setIsHoveringSpotlightRow(false)}
+                                    onClick={(e) => {
+                                        if (isOverFragment || isDraggingSpotlightFragment || !onAddSpotlightFragment || validDuration === 0 || contentWidth === 0) return;
+
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        const clickX = e.clientX - rect.left;
+                                        const clickTime = Math.max(0, Math.min(validDuration, (clickX / contentWidth) * validDuration));
+
+                                        onAddSpotlightFragment(clickTime);
+                                    }}
+                                >
+                                    <div
+                                        className="h-full flex items-center relative px-1"
+                                        style={{ width: contentWidth > 0 ? contentWidth : '100%' }}
+                                    >
+                                        {spotlightFragments.map((fragment) => (
+                                            <SpotlightFragmentTrackItem
+                                                key={fragment.id}
+                                                fragment={fragment}
+                                                isSelected={fragment.id === selectedSpotlightFragmentId}
+                                                contentWidth={contentWidth}
+                                                videoDuration={validDuration}
+                                                currentTime={currentTime}
+                                                otherFragments={spotlightFragments.filter(f => f.id !== fragment.id)}
+                                                onSelect={() => onSelectSpotlightFragment?.(fragment.id)}
+                                                onUpdate={(updates) => onUpdateSpotlightFragment?.(fragment.id, updates)}
+                                                onDragStateChange={(dragging) => {
+                                                    setIsDraggingSpotlightFragment(dragging);
+                                                    if (dragging) {
+                                                        setIsOverFragment(true);
+                                                        setIsHoveringSpotlightRow(false);
+                                                    }
+                                                }}
+                                            />
+                                        ))}
+
+                                        {isHoveringSpotlightRow && !isDraggingSpotlightFragment && !isOverFragment && (() => {
+                                            const hoverTime = Math.max(0, Math.min(validDuration, (spotlightGhostX / contentWidth) * validDuration));
+                                            const ghostLeft = (hoverTime / validDuration) * contentWidth;
+                                            const ghostWidth = (DEFAULT_SPOTLIGHT_FRAGMENT_DURATION / validDuration) * contentWidth;
+
+                                            return (
+                                                <motion.div
+                                                    className="absolute top-[16%] h-[68%] pointer-events-none"
+                                                    initial={false}
+                                                    animate={{
+                                                        left: Math.max(0, Math.min(contentWidth - ghostWidth, ghostLeft)),
+                                                        width: Math.max(48, ghostWidth),
+                                                    }}
+                                                    transition={{ type: "spring", stiffness: 500, damping: 40 }}
+                                                >
+                                                    <div className="w-full h-full rounded border border-dashed border-amber-300/60 bg-amber-500/10 flex flex-col items-center justify-center gap-0.5">
+                                                        <Icon icon="solar:spotlight-bold" width="12" height="12" className="text-amber-300" aria-hidden="true" />
+                                                        <span className="text-[8px] font-mono text-amber-300/70">+ Spotlight</span>
                                                     </div>
                                                 </motion.div>
                                             );
