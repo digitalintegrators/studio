@@ -8,6 +8,7 @@ export type Tool =
   | "audio"
   | "zoom"
   | "spotlight"
+  | "mask"
   | "mockup"
   | "cursor"
   | "videos"
