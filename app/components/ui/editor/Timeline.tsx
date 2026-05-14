@@ -4,19 +4,36 @@ import { useRef, useMemo, useCallback, useEffect, useState } from "react";
 import { motion, useMotionValue, useTransform, animate, PanInfo } from "framer-motion";
 import { formatTime, getZoomMultiplier } from "@/lib/video.utils";
 import { TIMELINE_LABEL_WIDTH, MIN_TRIM_DURATION } from "@/lib/constants";
-import type { TimelineProps } from "@/types/timeline.types";
+import type { TimelineProps as BaseTimelineProps } from "@/types/timeline.types";
+import type { SpotlightFragment } from "@/types/spotlight.types";
+import type { EditableMaskFragment } from "@/types/mask-fragment.types";
 import LabelSidebar from "./LabelSidebar";
 import { ZoomFragmentTrackItem, findValidFragmentPosition } from "./ZoomFragmentTrackItem";
+import { SpotlightFragmentTrackItem } from "./SpotlightFragmentTrackItem";
+import { MaskFragmentTrackItem } from "./MaskFragmentTrackItem";
 import { AudioFragmentTrackItem } from "./AudioFragmentTrackItem";
 import { VideoClipTrackItem } from "./VideoClipTrackItem";
-import { SpotlightFragmentTrackItem } from "./SpotlightFragmentTrackItem";
 import { Icon } from "@iconify/react";
 import { useTranslations } from "next-intl";
 import { useVideoThumbnails } from "@/hooks/useVideoThumbnails";
 import { useAudioWaveform } from "@/hooks/useAudioWaveform";
 
 const DEFAULT_ZOOM_FRAGMENT_DURATION = 2;
-const DEFAULT_SPOTLIGHT_FRAGMENT_DURATION = 2;
+
+const DEFAULT_EFFECT_FRAGMENT_DURATION = 2;
+
+type TimelineProps = BaseTimelineProps & {
+    spotlightFragments?: SpotlightFragment[];
+    selectedSpotlightFragmentId?: string | null;
+    onSelectSpotlightFragment?: (fragmentId: string | null) => void;
+    onAddSpotlightFragment?: (startTime: number) => void;
+    onUpdateSpotlightFragment?: (fragmentId: string, updates: Partial<SpotlightFragment>) => void;
+    maskFragments?: EditableMaskFragment[];
+    selectedMaskFragmentId?: string | null;
+    onSelectMaskFragment?: (fragmentId: string | null) => void;
+    onAddMaskFragment?: (startTime: number) => void;
+    onUpdateMaskFragment?: (fragmentId: string, updates: Partial<EditableMaskFragment>) => void;
+};
 
 export function Timeline({
     videoDuration,
@@ -42,12 +59,17 @@ export function Timeline({
     onAddZoomFragment,
     onUpdateZoomFragment,
     onActivateZoomTool,
-    // Spotlight props
+    // Effects props
     spotlightFragments = [],
     selectedSpotlightFragmentId,
     onSelectSpotlightFragment,
     onAddSpotlightFragment,
     onUpdateSpotlightFragment,
+    maskFragments = [],
+    selectedMaskFragmentId,
+    onSelectMaskFragment,
+    onAddMaskFragment,
+    onUpdateMaskFragment,
     // Audio props
     audioTracks = [],
     uploadedAudios = [],
@@ -63,18 +85,19 @@ export function Timeline({
     const [isDragging, setIsDragging] = useState(false);
     const [isDraggingTrim, setIsDraggingTrim] = useState<'start' | 'end' | null>(null);
     const [isDraggingZoomFragment, setIsDraggingZoomFragment] = useState(false);
-    const [isDraggingSpotlightFragment, setIsDraggingSpotlightFragment] = useState(false);
+    const [isDraggingEffectFragment, setIsDraggingEffectFragment] = useState(false);
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [isDraggingVideoClip, setIsDraggingVideoClip] = useState(false);
     const [isOverFragment, setIsOverFragment] = useState(false);
+    const [isHoveringEffectsRow, setIsHoveringEffectsRow] = useState(false);
+    const [effectsGhostX, setEffectsGhostX] = useState(0);
+    const [pendingEffectType, setPendingEffectType] = useState<"spotlight" | "mask">("mask");
 
     const pendingSeekRef = useRef<number | null>(null);
     const rafIdRef = useRef<number | null>(null);
     const isSeekingRef = useRef<boolean>(false);
     const [isHoveringZoomRow, setIsHoveringZoomRow] = useState(false);
-    const [isHoveringSpotlightRow, setIsHoveringSpotlightRow] = useState(false);
     const [ghostX, setGhostX] = useState(0);
-    const [spotlightGhostX, setSpotlightGhostX] = useState(0);
     const validDuration = useMemo(() => {
         if (videoClips.length > 0) {
             // Duración total = fin del último clip
@@ -362,7 +385,7 @@ export function Timeline({
                 <div className="flex-1 flex flex-col relative overflow-hidden">
 
                     {/* Label sidebar */}
-                    <LabelSidebar audioTracksCount={audioTracks.length} spotlightTracksCount={spotlightFragments.length} />
+                    <LabelSidebar audioTracksCount={audioTracks.length} spotlightTracksCount={spotlightFragments.length + maskFragments.length} />
                     {/* Scrollable content */}
                     <div
                         ref={trackRef}
@@ -700,29 +723,38 @@ export function Timeline({
                                 </div>
 
 
-                                {/* Spotlight track */}
+                                {/* Effects track: Spotlight + editable mask */}
                                 <div
-                                    className="h-10 shrink-0 flex items-center border-t border-white/5 relative bg-[#181107]"
+                                    className="h-10 shrink-0 flex items-center border-t border-white/5 relative bg-gradient-to-r from-amber-950/20 via-fuchsia-950/20 to-transparent"
                                     onMouseMove={(e) => {
-                                        if (isDraggingSpotlightFragment) return;
+                                        if (isDraggingEffectFragment) return;
                                         const rect = e.currentTarget.getBoundingClientRect();
-                                        setSpotlightGhostX(e.clientX - rect.left);
-                                        setIsHoveringSpotlightRow(true);
+                                        setEffectsGhostX(e.clientX - rect.left);
+                                        setIsHoveringEffectsRow(true);
                                     }}
-                                    onMouseLeave={() => setIsHoveringSpotlightRow(false)}
+                                    onMouseLeave={() => setIsHoveringEffectsRow(false)}
                                     onClick={(e) => {
-                                        if (isOverFragment || isDraggingSpotlightFragment || !onAddSpotlightFragment || validDuration === 0 || contentWidth === 0) return;
+                                        if (
+                                            isOverFragment ||
+                                            isDraggingEffectFragment ||
+                                            validDuration === 0 ||
+                                            contentWidth === 0
+                                        ) return;
 
                                         const rect = e.currentTarget.getBoundingClientRect();
                                         const clickX = e.clientX - rect.left;
                                         const clickTime = Math.max(0, Math.min(validDuration, (clickX / contentWidth) * validDuration));
 
-                                        onAddSpotlightFragment(clickTime);
+                                        if (pendingEffectType === "spotlight") {
+                                            onAddSpotlightFragment?.(clickTime);
+                                        } else {
+                                            onAddMaskFragment?.(clickTime);
+                                        }
                                     }}
                                 >
                                     <div
                                         className="h-full flex items-center relative px-1"
-                                        style={{ width: contentWidth > 0 ? contentWidth : '100%' }}
+                                        style={{ width: contentWidth > 0 ? contentWidth : "100%" }}
                                     >
                                         {spotlightFragments.map((fragment) => (
                                             <SpotlightFragmentTrackItem
@@ -731,42 +763,96 @@ export function Timeline({
                                                 isSelected={fragment.id === selectedSpotlightFragmentId}
                                                 contentWidth={contentWidth}
                                                 videoDuration={validDuration}
-                                                currentTime={currentTime}
-                                                otherFragments={spotlightFragments.filter(f => f.id !== fragment.id)}
+                                                otherFragments={spotlightFragments.filter((item) => item.id !== fragment.id)}
                                                 onSelect={() => onSelectSpotlightFragment?.(fragment.id)}
                                                 onUpdate={(updates) => onUpdateSpotlightFragment?.(fragment.id, updates)}
                                                 onDragStateChange={(dragging) => {
-                                                    setIsDraggingSpotlightFragment(dragging);
+                                                    setIsDraggingEffectFragment(dragging);
                                                     if (dragging) {
                                                         setIsOverFragment(true);
-                                                        setIsHoveringSpotlightRow(false);
+                                                        setIsHoveringEffectsRow(false);
                                                     }
                                                 }}
+                                                onMouseEnter={() => setIsOverFragment(true)}
+                                                onMouseLeave={() => setIsOverFragment(false)}
                                             />
                                         ))}
 
-                                        {isHoveringSpotlightRow && !isDraggingSpotlightFragment && !isOverFragment && (() => {
-                                            const hoverTime = Math.max(0, Math.min(validDuration, (spotlightGhostX / contentWidth) * validDuration));
-                                            const ghostLeft = (hoverTime / validDuration) * contentWidth;
-                                            const ghostWidth = (DEFAULT_SPOTLIGHT_FRAGMENT_DURATION / validDuration) * contentWidth;
+                                        {maskFragments.map((fragment) => (
+                                            <MaskFragmentTrackItem
+                                                key={fragment.id}
+                                                fragment={fragment}
+                                                isSelected={fragment.id === selectedMaskFragmentId}
+                                                contentWidth={contentWidth}
+                                                videoDuration={validDuration}
+                                                otherFragments={maskFragments.filter((item) => item.id !== fragment.id)}
+                                                onSelect={() => onSelectMaskFragment?.(fragment.id)}
+                                                onUpdate={(updates) => onUpdateMaskFragment?.(fragment.id, updates)}
+                                                onDragStateChange={(dragging) => {
+                                                    setIsDraggingEffectFragment(dragging);
+                                                    if (dragging) {
+                                                        setIsOverFragment(true);
+                                                        setIsHoveringEffectsRow(false);
+                                                    }
+                                                }}
+                                                onMouseEnter={() => setIsOverFragment(true)}
+                                                onMouseLeave={() => setIsOverFragment(false)}
+                                            />
+                                        ))}
 
-                                            return (
-                                                <motion.div
-                                                    className="absolute top-[16%] h-[68%] pointer-events-none"
-                                                    initial={false}
-                                                    animate={{
-                                                        left: Math.max(0, Math.min(contentWidth - ghostWidth, ghostLeft)),
-                                                        width: Math.max(48, ghostWidth),
-                                                    }}
-                                                    transition={{ type: "spring", stiffness: 500, damping: 40 }}
-                                                >
-                                                    <div className="w-full h-full rounded border border-dashed border-amber-300/60 bg-amber-500/10 flex flex-col items-center justify-center gap-0.5">
-                                                        <Icon icon="solar:spotlight-bold" width="12" height="12" className="text-amber-300" aria-hidden="true" />
-                                                        <span className="text-[8px] font-mono text-amber-300/70">+ Spotlight</span>
-                                                    </div>
-                                                </motion.div>
-                                            );
-                                        })()}
+                                        {isHoveringEffectsRow && !isDraggingEffectFragment && !isOverFragment && (
+                                            <div
+                                                className="absolute top-[12%] h-[76%] w-32 pointer-events-none"
+                                                style={{ left: Math.max(0, effectsGhostX - 64) }}
+                                            >
+                                                <div className={`h-full w-full rounded border border-dashed flex flex-col items-center justify-center gap-0.5 ${
+                                                    pendingEffectType === "spotlight"
+                                                        ? "border-amber-400/50 bg-amber-500/10 text-amber-300"
+                                                        : "border-fuchsia-400/50 bg-fuchsia-500/10 text-fuchsia-300"
+                                                }`}>
+                                                    <Icon
+                                                        icon={pendingEffectType === "spotlight" ? "solar:flashlight-on-bold" : "solar:mask-happly-bold"}
+                                                        width="12"
+                                                        height="12"
+                                                        aria-hidden="true"
+                                                    />
+                                                    <span className="text-[8px] font-mono">
+                                                        + {pendingEffectType === "spotlight" ? "Spotlight" : "Máscara"}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className="absolute right-2 top-1/2 z-30 flex -translate-y-1/2 overflow-hidden rounded-full border border-white/10 bg-black/45 p-0.5 backdrop-blur-md">
+                                            <button
+                                                type="button"
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    setPendingEffectType("spotlight");
+                                                }}
+                                                className={`rounded-full px-2 py-1 text-[9px] font-semibold transition ${
+                                                    pendingEffectType === "spotlight"
+                                                        ? "bg-amber-400 text-black"
+                                                        : "text-amber-200/70 hover:bg-amber-400/10"
+                                                }`}
+                                            >
+                                                Spot
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    setPendingEffectType("mask");
+                                                }}
+                                                className={`rounded-full px-2 py-1 text-[9px] font-semibold transition ${
+                                                    pendingEffectType === "mask"
+                                                        ? "bg-fuchsia-400 text-black"
+                                                        : "text-fuchsia-200/70 hover:bg-fuchsia-400/10"
+                                                }`}
+                                            >
+                                                Máscara
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
 
