@@ -2597,7 +2597,9 @@ export default function Editor() {
     // Zoom fragment handlers
     const handleSelectZoomFragment = useCallback((fragmentId: string | null) => {
         setSelectedZoomFragmentId(fragmentId);
+
         if (fragmentId) {
+            setActiveTool("zoom");
             setSelectedAudioTrackId(null);
             setSelectedVideoClipId(null);
             setSelectedSpotlightFragmentId(null);
@@ -2628,7 +2630,7 @@ export default function Editor() {
         const newFragment = createZoomFragment(validPosition.startTime, validPosition.endTime);
         setZoomFragments(prev => [...prev, newFragment].sort((a, b) => a.startTime - b.startTime));
         setSelectedZoomFragmentId(newFragment.id);
-        setActiveTool("spotlight");
+        setActiveTool("zoom");
     }, [videoDuration]);
 
     const handleUpdateZoomFragment = useCallback((fragmentId: string, updates: Partial<ZoomFragment>) => {
@@ -2650,6 +2652,38 @@ export default function Editor() {
         [zoomFragments, selectedZoomFragmentId]
     );
 
+    const handleSelectSpotlightFragment = useCallback((fragmentId: string | null) => {
+        setSelectedSpotlightFragmentId(fragmentId);
+
+        if (!fragmentId) return;
+
+        const fragment = spotlightFragments.find((item) => item.id === fragmentId);
+
+        if (fragment) {
+            const targetTime = Math.max(0, Math.min(videoDuration, fragment.startTime + 0.05));
+
+            setIsPlaying(false);
+            setCurrentTime(targetTime);
+            setScrubTime(targetTime);
+            scrubTimeRef.current = targetTime;
+
+            if (videoRef.current) {
+                videoRef.current.pause();
+                videoRef.current.currentTime = targetTime;
+            }
+
+            window.requestAnimationFrame(() => {
+                canvasRef.current?.drawFrame?.();
+            });
+        }
+
+        setActiveTool("spotlight");
+        setSelectedZoomFragmentId(null);
+        setSelectedAudioTrackId(null);
+        setSelectedVideoClipId(null);
+        setSelectedElementId(null);
+    }, [spotlightFragments, videoDuration]);
+
     const handleAddSpotlightFragment = useCallback((startTime: number) => {
         const safeStart = Math.max(0, Math.min(videoDuration, startTime));
         const duration = Math.min(DEFAULT_SPOTLIGHT_DURATION, Math.max(0.5, videoDuration - safeStart));
@@ -2661,7 +2695,25 @@ export default function Editor() {
         setSpotlightFragments((prev) => [...prev, newFragment].sort((a, b) => a.startTime - b.startTime));
         setSelectedSpotlightFragmentId(newFragment.id);
         setSelectedZoomFragmentId(null);
-        setActiveTool("zoom");
+        setSelectedAudioTrackId(null);
+        setSelectedVideoClipId(null);
+        setSelectedElementId(null);
+        setActiveTool("spotlight");
+
+        const targetTime = Math.max(0, Math.min(videoDuration, newFragment.startTime + 0.05));
+        setIsPlaying(false);
+        setCurrentTime(targetTime);
+        setScrubTime(targetTime);
+        scrubTimeRef.current = targetTime;
+
+        if (videoRef.current) {
+            videoRef.current.pause();
+            videoRef.current.currentTime = targetTime;
+        }
+
+        window.requestAnimationFrame(() => {
+            canvasRef.current?.drawFrame?.();
+        });
     }, [videoDuration]);
 
     const handleUpdateSpotlightFragment = useCallback((fragmentId: string, updates: Partial<SpotlightFragment>) => {
@@ -2804,6 +2856,8 @@ export default function Editor() {
                     setSelectedAudioTrackId(null);
                 } else if (selectedZoomFragmentId) {
                     setSelectedZoomFragmentId(null);
+                } else if (selectedSpotlightFragmentId) {
+                    setSelectedSpotlightFragmentId(null);
                 }
             }
 
@@ -3311,6 +3365,23 @@ export default function Editor() {
 
                                             setSpotlightFragments((prev) => [...prev, copy].sort((a, b) => a.startTime - b.startTime));
                                             setSelectedSpotlightFragmentId(copy.id);
+                                            setSelectedZoomFragmentId(null);
+                                            setActiveTool("spotlight");
+
+                                            const targetTime = Math.max(0, Math.min(videoDuration, copy.startTime + 0.05));
+                                            setIsPlaying(false);
+                                            setCurrentTime(targetTime);
+                                            setScrubTime(targetTime);
+                                            scrubTimeRef.current = targetTime;
+
+                                            if (videoRef.current) {
+                                                videoRef.current.pause();
+                                                videoRef.current.currentTime = targetTime;
+                                            }
+
+                                            window.requestAnimationFrame(() => {
+                                                canvasRef.current?.drawFrame?.();
+                                            });
                                         }}
                                         className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/75 transition hover:bg-white/10"
                                     >
@@ -3421,7 +3492,29 @@ export default function Editor() {
 
             <MobileToolsMenu
                 activeTool={activeTool}
-                onToolChange={setActiveTool}
+                onToolChange={(tool) => {
+                    setActiveTool(tool);
+
+                    if (tool !== "spotlight") {
+                        setSelectedSpotlightFragmentId(null);
+                    }
+
+                    if (tool !== "zoom") {
+                        setSelectedZoomFragmentId(null);
+                    }
+
+                    if (tool !== "audio") {
+                        setSelectedAudioTrackId(null);
+                    }
+
+                    if (tool !== "videos") {
+                        setSelectedVideoClipId(null);
+                    }
+
+                    if (tool !== "elements") {
+                        setSelectedElementId(null);
+                    }
+                }}
                 onVideoUpload={handleVideoUpload}
                 isUploading={isUploading}
                 onOpenToolPanel={() => setIsMobileControlPanelOpen(true)}
