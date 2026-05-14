@@ -69,6 +69,7 @@ type ExtendedVideoCanvasProps = VideoCanvasProps & {
   cursorConfig?: CursorConfig;
   cursorData?: CursorRecordingData;
   isRecordedVideo?: boolean;
+  isPlaying?: boolean;
   spotlightFragments?: SpotlightFragment[];
   selectedSpotlightFragmentId?: string | null;
   onSelectSpotlightFragment?: (fragmentId: string | null) => void;
@@ -235,6 +236,9 @@ export const VideoCanvas = forwardRef<
   const spotlightFragments = props.spotlightFragments ?? [];
   const maskFragments = props.maskFragments ?? [];
   const selectedMaskFragmentId = props.selectedMaskFragmentId ?? null;
+  const isPlaying = props.isPlaying ?? false;
+  const isSpotlightEditing = Boolean(selectedSpotlightFragmentId) && !isPlaying;
+  const isMaskEditing = Boolean(selectedMaskFragmentId) && !isPlaying;
   const wallpaperUrl = getWallpaperUrl(selectedWallpaper);
   const hasMedia = mediaType === "video" ? !!videoUrl : !!imageUrl;
   const currentThumbnail = useMemo<VideoThumbnail | null>(() => {
@@ -2670,9 +2674,10 @@ export const VideoCanvas = forwardRef<
                             : `radial-gradient(ellipse ${(activeSpotlightFragment.width / 1.65).toFixed(2)}% ${(activeSpotlightFragment.height / 1.65).toFixed(2)}% at ${activeSpotlightFragment.x}% ${activeSpotlightFragment.y}%, transparent 0%, transparent 58%, black 100%)`,
                       }}
                     />{" "}
-                    <div
-                      role="button"
-                      aria-label="Mover spotlight"
+                    {isSpotlightEditing && activeSpotlightFragment.id === selectedSpotlightFragmentId && (
+                      <div
+                        role="button"
+                        aria-label="Mover spotlight"
                       tabIndex={0}
                       className="absolute border shadow-[0_0_70px_rgba(255,255,255,0.22)] pointer-events-auto cursor-move border-amber-300/95 ring-2 ring-amber-300/45"
                       style={{
@@ -2722,7 +2727,8 @@ export const VideoCanvas = forwardRef<
                           />{" "}
                         </>
                       )}{" "}
-                    </div>{" "}
+                      </div>
+                    )}{" "}
                   </div>
                 )}{" "}
                 {activeMaskFragment && (
@@ -2749,7 +2755,7 @@ export const VideoCanvas = forwardRef<
                       }}
                     />
 
-                    {activeMaskFragment.id === selectedMaskFragmentId && (
+                    {isMaskEditing && activeMaskFragment.id === selectedMaskFragmentId && (
                       <div
                         role="button"
                         aria-label="Mover máscara"
