@@ -31,6 +31,8 @@ import type { Preview3DConfig, ImageMaskConfig } from "@/types/photo.types";
 import { DEFAULT_MASK_CONFIG, PREVIEW_CONFIGS } from "@/types/photo.types";
 import { MOCKUPS } from "@/lib/mockup-data";
 import { gradientToCss, generateDefaultZoomFragments, createZoomFragment, ASPECT_RATIO_DIMENSIONS } from "@/types";
+import type { SpotlightFragment } from "@/types/spotlight.types";
+import { createSpotlightFragment, DEFAULT_SPOTLIGHT_DURATION } from "@/types/spotlight.types";
 import { ToolsSidebar } from "@/app/components/ui/editor/ToolsSidebar";
 import { MobileToolsMenu } from "@/app/components/ui/editor/MobileToolsMenu";
 import { MobileControlPanel } from "@/app/components/ui/editor/MobileControlPanel";
@@ -200,6 +202,10 @@ export default function Editor() {
     // Zoom fragments state
     const [zoomFragments, setZoomFragments] = useState<ZoomFragment[]>([]);
     const [selectedZoomFragmentId, setSelectedZoomFragmentId] = useState<string | null>(null);
+
+    // Spotlight fragments state
+    const [spotlightFragments, setSpotlightFragments] = useState<SpotlightFragment[]>([]);
+    const [selectedSpotlightFragmentId, setSelectedSpotlightFragmentId] = useState<string | null>(null);
 
     // Ref to always have the latest zoomFragments value (prevents stale closures)
     const zoomFragmentsRef = useRef<ZoomFragment[]>([]);
@@ -2523,6 +2529,7 @@ export default function Editor() {
         if (fragmentId) {
             setSelectedAudioTrackId(null);
             setSelectedVideoClipId(null);
+            setSelectedSpotlightFragmentId(null);
             setSelectedElementId(null);
         }
     }, []);
@@ -2570,6 +2577,58 @@ export default function Editor() {
     const selectedZoomFragment = useMemo(() =>
         zoomFragments.find(f => f.id === selectedZoomFragmentId) || null,
         [zoomFragments, selectedZoomFragmentId]
+    );
+
+    const handleSelectSpotlightFragment = useCallback((fragmentId: string | null) => {
+        setSelectedSpotlightFragmentId(fragmentId);
+
+        if (fragmentId) {
+            setSelectedZoomFragmentId(null);
+            setSelectedAudioTrackId(null);
+            setSelectedVideoClipId(null);
+            setSelectedElementId(null);
+        }
+    }, []);
+
+    const handleAddSpotlightFragment = useCallback((startTime: number) => {
+        const safeStart = Math.max(0, Math.min(videoDuration, startTime));
+        const duration = Math.min(DEFAULT_SPOTLIGHT_DURATION, Math.max(0.5, videoDuration - safeStart));
+
+        if (duration <= 0) return;
+
+        const newFragment = createSpotlightFragment(safeStart, duration);
+
+        setSpotlightFragments((prev) => [...prev, newFragment].sort((a, b) => a.startTime - b.startTime));
+        setSelectedSpotlightFragmentId(newFragment.id);
+        setSelectedZoomFragmentId(null);
+        setActiveTool("select");
+    }, [videoDuration]);
+
+    const handleUpdateSpotlightFragment = useCallback((fragmentId: string, updates: Partial<SpotlightFragment>) => {
+        setSpotlightFragments((prev) => prev.map((fragment) => {
+            if (fragment.id !== fragmentId) return fragment;
+
+            const next = { ...fragment, ...updates };
+            const minDuration = 0.2;
+
+            next.startTime = Math.max(0, Math.min(videoDuration, next.startTime));
+            next.endTime = Math.max(next.startTime + minDuration, Math.min(videoDuration, next.endTime));
+
+            return next;
+        }).sort((a, b) => a.startTime - b.startTime));
+    }, [videoDuration]);
+
+    const handleDeleteSpotlightFragment = useCallback((fragmentId: string) => {
+        setSpotlightFragments((prev) => prev.filter((fragment) => fragment.id !== fragmentId));
+
+        if (selectedSpotlightFragmentId === fragmentId) {
+            setSelectedSpotlightFragmentId(null);
+        }
+    }, [selectedSpotlightFragmentId]);
+
+    const selectedSpotlightFragment = useMemo(() =>
+        spotlightFragments.find((fragment) => fragment.id === selectedSpotlightFragmentId) || null,
+        [spotlightFragments, selectedSpotlightFragmentId]
     );
 
     // Calcular el CSS del background actual - memoized
@@ -2938,6 +2997,9 @@ export default function Editor() {
                         cameraConfig={cameraConfig}
                         cursorConfig={cursorConfig}
                         cursorData={cursorData}
+                        isRecordedVideo={isRecordedVideo}
+                        spotlightFragments={spotlightFragments}
+                        selectedSpotlightFragmentId={selectedSpotlightFragmentId}
                         onCameraConfigChange={handleCameraConfigChange}
                         onCameraClick={handleCameraClick}
                         onEnded={() => {
@@ -3007,6 +3069,11 @@ export default function Editor() {
                                     onAddZoomFragment={handleAddZoomFragment}
                                     onUpdateZoomFragment={handleUpdateZoomFragment}
                                     onActivateZoomTool={handleActivateZoomTool}
+                                    spotlightFragments={spotlightFragments}
+                                    selectedSpotlightFragmentId={selectedSpotlightFragmentId}
+                                    onSelectSpotlightFragment={handleSelectSpotlightFragment}
+                                    onAddSpotlightFragment={handleAddSpotlightFragment}
+                                    onUpdateSpotlightFragment={handleUpdateSpotlightFragment}
                                     audioTracks={audioTracks}
                                     uploadedAudios={uploadedAudios}
                                     selectedAudioTrackId={selectedAudioTrackId}
