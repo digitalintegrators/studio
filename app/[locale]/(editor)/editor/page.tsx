@@ -2628,7 +2628,7 @@ export default function Editor() {
         const newFragment = createZoomFragment(validPosition.startTime, validPosition.endTime);
         setZoomFragments(prev => [...prev, newFragment].sort((a, b) => a.startTime - b.startTime));
         setSelectedZoomFragmentId(newFragment.id);
-        setActiveTool("zoom");
+        setActiveTool("spotlight");
     }, [videoDuration]);
 
     const handleUpdateZoomFragment = useCallback((fragmentId: string, updates: Partial<ZoomFragment>) => {
