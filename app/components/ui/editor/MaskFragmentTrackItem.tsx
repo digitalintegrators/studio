@@ -12,6 +12,7 @@ type MaskFragmentTrackItemProps = {
   isSelected: boolean;
   contentWidth: number;
   videoDuration: number;
+  currentTime?: number;
   otherFragments: EditableMaskFragment[];
   onSelect: () => void;
   onUpdate: (updates: Partial<EditableMaskFragment>) => void;
@@ -33,6 +34,7 @@ export function MaskFragmentTrackItem({
   isSelected,
   contentWidth,
   videoDuration,
+  currentTime: _currentTime,
   otherFragments,
   onSelect,
   onUpdate,
