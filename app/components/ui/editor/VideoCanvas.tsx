@@ -315,19 +315,45 @@ export const VideoCanvas = forwardRef<
   const shouldShowSpotlight =
     shouldShowCursorOverlay && extendedCursorConfig.spotlightEnabled === true;
   const activeSpotlightFragment = useMemo(() => {
-    if (mediaType !== "video" || !hasMedia || spotlightFragments.length === 0)
+    if (mediaType !== "video" || !hasMedia || spotlightFragments.length === 0) {
       return null;
+    }
+
+    const selectedFragment = selectedSpotlightFragmentId
+      ? spotlightFragments.find((fragment) => fragment.id === selectedSpotlightFragmentId)
+      : null;
+
+    if (isSpotlightEditing && selectedFragment) {
+      return selectedFragment;
+    }
+
     return (
       spotlightFragments.find(
         (fragment) =>
           currentTime >= fragment.startTime && currentTime <= fragment.endTime,
       ) ?? null
     );
-  }, [mediaType, hasMedia, spotlightFragments, currentTime]);
+  }, [
+    mediaType,
+    hasMedia,
+    spotlightFragments,
+    currentTime,
+    selectedSpotlightFragmentId,
+    isSpotlightEditing,
+  ]);
 
   const activeMaskFragment = useMemo<EditableMaskFragment | null>(() => {
-    if (mediaType !== "video" || !hasMedia || maskFragments.length === 0)
+    if (mediaType !== "video" || !hasMedia || maskFragments.length === 0) {
       return null;
+    }
+
+    const selectedFragment = selectedMaskFragmentId
+      ? maskFragments.find((fragment) => fragment.id === selectedMaskFragmentId)
+      : null;
+
+    if (isMaskEditing && selectedFragment) {
+      return selectedFragment;
+    }
 
     return (
       maskFragments.find(
@@ -335,7 +361,14 @@ export const VideoCanvas = forwardRef<
           currentTime >= fragment.startTime && currentTime <= fragment.endTime,
       ) ?? null
     );
-  }, [mediaType, hasMedia, maskFragments, currentTime]);
+  }, [
+    mediaType,
+    hasMedia,
+    maskFragments,
+    currentTime,
+    selectedMaskFragmentId,
+    isMaskEditing,
+  ]);
 
   const shouldShowUnsplashOverride =
     backgroundTab === "wallpaper" && unsplashOverrideUrl !== "";
@@ -1239,9 +1272,60 @@ export const VideoCanvas = forwardRef<
     const radius = Math.max(0, fragment.radius ?? 18) * (canvasWidth / 1920);
     const opacity = Math.max(0, Math.min(0.95, fragment.opacity ?? 0.72));
 
+    const blurAmount = Math.max(0, Math.min(40, fragment.blur ?? 8));
+
     ctx.save();
+
+    if (blurAmount > 0) {
+      const sourceCanvas = ctx.canvas;
+      const padding = blurAmount * 2;
+      const sampleLeft = Math.max(0, left - padding);
+      const sampleTop = Math.max(0, top - padding);
+      const sampleRight = Math.min(canvasWidth, left + width + padding);
+      const sampleBottom = Math.min(canvasHeight, top + height + padding);
+      const sampleWidth = Math.max(1, sampleRight - sampleLeft);
+      const sampleHeight = Math.max(1, sampleBottom - sampleTop);
+      const blurCanvas = document.createElement("canvas");
+      blurCanvas.width = sampleWidth;
+      blurCanvas.height = sampleHeight;
+      const blurCtx = blurCanvas.getContext("2d");
+
+      if (blurCtx) {
+        blurCtx.drawImage(
+          sourceCanvas,
+          sampleLeft,
+          sampleTop,
+          sampleWidth,
+          sampleHeight,
+          0,
+          0,
+          sampleWidth,
+          sampleHeight,
+        );
+
+        ctx.save();
+        if (fragment.shape === "circle") {
+          ctx.beginPath();
+          ctx.ellipse(x, y, width / 2, height / 2, 0, 0, Math.PI * 2);
+          ctx.clip();
+        } else if (fragment.shape === "rounded") {
+          drawRoundedRect(ctx, left, top, width, height, radius);
+          ctx.clip();
+        } else {
+          ctx.beginPath();
+          ctx.rect(left, top, width, height);
+          ctx.clip();
+        }
+
+        ctx.filter = `blur(${blurAmount}px) saturate(115%)`;
+        ctx.drawImage(blurCanvas, sampleLeft, sampleTop);
+        ctx.filter = "none";
+        ctx.restore();
+      }
+    }
+
     ctx.globalAlpha = opacity;
-    ctx.fillStyle = "rgba(5, 5, 10, 0.82)";
+    ctx.fillStyle = "rgba(5, 5, 10, 0.38)";
 
     if (fragment.shape === "circle") {
       ctx.beginPath();
@@ -2738,7 +2822,7 @@ export const VideoCanvas = forwardRef<
                     style={{ zIndex: VIDEO_Z_INDEX + 166 }}
                   >
                     <div
-                      className="absolute pointer-events-none bg-black/60 shadow-[0_0_40px_rgba(217,70,239,0.22)]"
+                      className="absolute pointer-events-none shadow-[0_0_40px_rgba(217,70,239,0.22)]"
                       style={{
                         left: `${activeMaskFragment.x}%`,
                         top: `${activeMaskFragment.y}%`,
@@ -2751,8 +2835,9 @@ export const VideoCanvas = forwardRef<
                             : activeMaskFragment.shape === "rounded"
                               ? `${activeMaskFragment.radius ?? 18}px`
                               : "2px",
-                        opacity: activeMaskFragment.opacity ?? 0.72,
-                        backdropFilter: `blur(${activeMaskFragment.blur ?? 8}px)`,
+                        background: `rgba(5, 5, 10, ${Math.max(0.12, Math.min(0.62, (activeMaskFragment.opacity ?? 0.72) * 0.52))})`,
+                        backdropFilter: `blur(${Math.max(0, activeMaskFragment.blur ?? 8)}px) saturate(115%)`,
+                        WebkitBackdropFilter: `blur(${Math.max(0, activeMaskFragment.blur ?? 8)}px) saturate(115%)`,
                       }}
                     />
 
