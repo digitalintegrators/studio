@@ -35,6 +35,8 @@ type ExtendedVideoCanvasProps = VideoCanvasProps & {
     isRecordedVideo?: boolean;
     spotlightFragments?: SpotlightFragment[];
     selectedSpotlightFragmentId?: string | null;
+    onSelectSpotlightFragment?: (fragmentId: string | null) => void;
+    onUpdateSpotlightFragment?: (fragmentId: string, updates: Partial<SpotlightFragment>) => void;
 };
 
 type ExtendedCursorConfig = CursorConfig & {
@@ -172,6 +174,8 @@ export const VideoCanvas = forwardRef<VideoCanvasHandle, ExtendedVideoCanvasProp
         textToolActive = false,
         onTextToolDeactivate,
         onAddElement,
+        onSelectSpotlightFragment,
+        onUpdateSpotlightFragment,
     } = props;
 
     const {
@@ -352,6 +356,19 @@ export const VideoCanvas = forwardRef<VideoCanvasHandle, ExtendedVideoCanvasProp
     const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
     const previewContainerRef = useRef<HTMLDivElement>(null);
 
+    const [isDraggingSpotlight, setIsDraggingSpotlight] = useState(false);
+    const spotlightDragRef = useRef<{
+        pointerId: number;
+        fragmentId: string;
+        mode: "move" | "resize";
+        startX: number;
+        startY: number;
+        initialX: number;
+        initialY: number;
+        initialWidth: number;
+        initialHeight: number;
+    } | null>(null);
+
     const cameraDragRef = useRef<{
         pointerId: number;
         startX: number;
@@ -416,6 +433,86 @@ export const VideoCanvas = forwardRef<VideoCanvasHandle, ExtendedVideoCanvasProp
         window.addEventListener("pointerdown", close);
         return () => window.removeEventListener("pointerdown", close);
     }, [!!canvasCtxMenu]);
+
+    useEffect(() => {
+        if (!isDraggingSpotlight) return;
+
+        const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+        const handlePointerMove = (event: PointerEvent) => {
+            const drag = spotlightDragRef.current;
+            const container = previewContainerRef.current;
+
+            if (!drag || !container || event.pointerId !== drag.pointerId || !onUpdateSpotlightFragment) return;
+
+            const rect = container.getBoundingClientRect();
+            const dx = ((event.clientX - drag.startX) / Math.max(1, rect.width)) * 100;
+            const dy = ((event.clientY - drag.startY) / Math.max(1, rect.height)) * 100;
+
+            if (drag.mode === "move") {
+                onUpdateSpotlightFragment(drag.fragmentId, {
+                    x: clamp(drag.initialX + dx, 0, 100),
+                    y: clamp(drag.initialY + dy, 0, 100),
+                });
+                return;
+            }
+
+            onUpdateSpotlightFragment(drag.fragmentId, {
+                width: clamp(drag.initialWidth + dx * 2, 4, 100),
+                height: clamp(drag.initialHeight + dy * 2, 4, 100),
+            });
+        };
+
+        const handlePointerUp = (event: PointerEvent) => {
+            const drag = spotlightDragRef.current;
+
+            if (drag && event.pointerId !== drag.pointerId) return;
+
+            spotlightDragRef.current = null;
+            setIsDraggingSpotlight(false);
+        };
+
+        window.addEventListener("pointermove", handlePointerMove);
+        window.addEventListener("pointerup", handlePointerUp);
+        window.addEventListener("pointercancel", handlePointerUp);
+
+        return () => {
+            window.removeEventListener("pointermove", handlePointerMove);
+            window.removeEventListener("pointerup", handlePointerUp);
+            window.removeEventListener("pointercancel", handlePointerUp);
+        };
+    }, [isDraggingSpotlight, onUpdateSpotlightFragment]);
+
+    const handleSpotlightPointerDown = useCallback((
+        event: React.PointerEvent<HTMLDivElement>,
+        fragment: SpotlightFragment,
+        mode: "move" | "resize"
+    ) => {
+        if (!onUpdateSpotlightFragment) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        onSelectSpotlightFragment?.(fragment.id);
+        setIsVideoSelected(false);
+        onElementSelect?.(null);
+
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+
+        spotlightDragRef.current = {
+            pointerId: event.pointerId,
+            fragmentId: fragment.id,
+            mode,
+            startX: event.clientX,
+            startY: event.clientY,
+            initialX: fragment.x,
+            initialY: fragment.y,
+            initialWidth: fragment.width,
+            initialHeight: fragment.height,
+        };
+
+        setIsDraggingSpotlight(true);
+    }, [onElementSelect, onSelectSpotlightFragment, onUpdateSpotlightFragment]);
 
     const maskStyles = useMemo(() => {
         const config = mediaType === "video" ? videoMaskConfig : imageMaskConfig;
@@ -2300,6 +2397,7 @@ export const VideoCanvas = forwardRef<VideoCanvasHandle, ExtendedVideoCanvasProp
 
                                 {activeSpotlightFragment && (
                                     <div
+                                        data-spotlight-layer
                                         className="absolute inset-0 pointer-events-none"
                                         style={{
                                             zIndex: VIDEO_Z_INDEX + 150,
@@ -2322,7 +2420,14 @@ export const VideoCanvas = forwardRef<VideoCanvasHandle, ExtendedVideoCanvasProp
                                         />
 
                                         <div
-                                            className="absolute border border-white/15 shadow-[0_0_70px_rgba(255,255,255,0.22)]"
+                                            role="button"
+                                            aria-label="Mover spotlight"
+                                            tabIndex={0}
+                                            className={`absolute border shadow-[0_0_70px_rgba(255,255,255,0.22)] ${
+                                                activeSpotlightFragment.id === selectedSpotlightFragmentId
+                                                    ? "pointer-events-auto cursor-move border-amber-300/95 ring-2 ring-amber-300/45"
+                                                    : "border-white/15"
+                                            }`}
                                             style={{
                                                 left: `${activeSpotlightFragment.x}%`,
                                                 top: `${activeSpotlightFragment.y}%`,
@@ -2335,8 +2440,28 @@ export const VideoCanvas = forwardRef<VideoCanvasHandle, ExtendedVideoCanvasProp
                                                         : activeSpotlightFragment.shape === "rounded"
                                                             ? `${activeSpotlightFragment.radius ?? 18}px`
                                                             : "2px",
+                                                touchAction: "none",
                                             }}
-                                        />
+                                            onPointerDown={(event) => handleSpotlightPointerDown(event, activeSpotlightFragment, "move")}
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                onSelectSpotlightFragment?.(activeSpotlightFragment.id);
+                                            }}
+                                        >
+                                            {activeSpotlightFragment.id === selectedSpotlightFragmentId && (
+                                                <>
+                                                    <div className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/40 bg-amber-300 shadow-[0_0_18px_rgba(251,191,36,0.65)]" />
+                                                    <div
+                                                        role="button"
+                                                        aria-label="Redimensionar spotlight"
+                                                        className="absolute -bottom-2 -right-2 h-5 w-5 cursor-nwse-resize rounded-full border border-black/40 bg-amber-300 shadow-[0_0_18px_rgba(251,191,36,0.65)]"
+                                                        style={{ touchAction: "none" }}
+                                                        onPointerDown={(event) => handleSpotlightPointerDown(event, activeSpotlightFragment, "resize")}
+                                                        onClick={(event) => event.stopPropagation()}
+                                                    />
+                                                </>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
 
