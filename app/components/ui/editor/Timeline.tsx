@@ -33,6 +33,7 @@ type TimelineProps = BaseTimelineProps & {
     onSelectMaskFragment?: (fragmentId: string | null) => void;
     onAddMaskFragment?: (startTime: number) => void;
     onUpdateMaskFragment?: (fragmentId: string, updates: Partial<EditableMaskFragment>) => void;
+    effectInsertMode?: "spotlight" | "mask";
 };
 
 export function Timeline({
@@ -70,6 +71,7 @@ export function Timeline({
     onSelectMaskFragment,
     onAddMaskFragment,
     onUpdateMaskFragment,
+    effectInsertMode = "mask",
     // Audio props
     audioTracks = [],
     uploadedAudios = [],
@@ -91,7 +93,6 @@ export function Timeline({
     const [isOverFragment, setIsOverFragment] = useState(false);
     const [isHoveringEffectsRow, setIsHoveringEffectsRow] = useState(false);
     const [effectsGhostX, setEffectsGhostX] = useState(0);
-    const [pendingEffectType, setPendingEffectType] = useState<"spotlight" | "mask">("mask");
 
     const pendingSeekRef = useRef<number | null>(null);
     const rafIdRef = useRef<number | null>(null);
@@ -386,44 +387,6 @@ export function Timeline({
 
                     {/* Label sidebar */}
                     <LabelSidebar audioTracksCount={audioTracks.length} spotlightTracksCount={spotlightFragments.length + maskFragments.length} />
-
-                    <div
-                        data-effect-interactive
-                        className="absolute left-[270px] top-2 z-40 hidden items-center overflow-hidden rounded-full border border-white/10 bg-black/55 p-0.5 shadow-[0_8px_28px_rgba(0,0,0,0.35)] backdrop-blur-xl md:flex"
-                        onClick={(event) => event.stopPropagation()}
-                        aria-label="Selector de efecto"
-                    >
-                        <button
-                            type="button"
-                            onClick={(event) => {
-                                event.stopPropagation();
-                                setPendingEffectType("spotlight");
-                            }}
-                            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-bold transition ${
-                                pendingEffectType === "spotlight"
-                                    ? "bg-amber-400 text-black shadow-[0_0_18px_rgba(251,191,36,0.25)]"
-                                    : "text-amber-200/75 hover:bg-amber-400/10 hover:text-amber-100"
-                            }`}
-                        >
-                            <Icon icon="solar:flashlight-on-bold" width="12" height="12" aria-hidden="true" />
-                            Spot
-                        </button>
-                        <button
-                            type="button"
-                            onClick={(event) => {
-                                event.stopPropagation();
-                                setPendingEffectType("mask");
-                            }}
-                            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-bold transition ${
-                                pendingEffectType === "mask"
-                                    ? "bg-fuchsia-400 text-black shadow-[0_0_18px_rgba(232,121,249,0.25)]"
-                                    : "text-fuchsia-200/75 hover:bg-fuchsia-400/10 hover:text-fuchsia-100"
-                            }`}
-                        >
-                            <Icon icon="solar:mask-happly-bold" width="12" height="12" aria-hidden="true" />
-                            Máscara
-                        </button>
-                    </div>
 
                     {/* Scrollable content */}
                     <div
@@ -786,7 +749,7 @@ export function Timeline({
                                         const clickX = e.clientX - rect.left;
                                         const clickTime = Math.max(0, Math.min(validDuration, (clickX / contentWidth) * validDuration));
 
-                                        if (pendingEffectType === "spotlight") {
+                                        if (effectInsertMode === "spotlight") {
                                             onAddSpotlightFragment?.(clickTime);
                                         } else {
                                             onAddMaskFragment?.(clickTime);
@@ -845,18 +808,18 @@ export function Timeline({
                                                 style={{ left: Math.max(0, effectsGhostX - 64) }}
                                             >
                                                 <div className={`h-full w-full rounded border border-dashed flex flex-col items-center justify-center gap-0.5 ${
-                                                    pendingEffectType === "spotlight"
+                                                    effectInsertMode === "spotlight"
                                                         ? "border-amber-400/50 bg-amber-500/10 text-amber-300"
                                                         : "border-fuchsia-400/50 bg-fuchsia-500/10 text-fuchsia-300"
                                                 }`}>
                                                     <Icon
-                                                        icon={pendingEffectType === "spotlight" ? "solar:flashlight-on-bold" : "solar:mask-happly-bold"}
+                                                        icon={effectInsertMode === "spotlight" ? "solar:flashlight-on-bold" : "solar:mask-happly-bold"}
                                                         width="12"
                                                         height="12"
                                                         aria-hidden="true"
                                                     />
                                                     <span className="text-[8px] font-mono">
-                                                        + {pendingEffectType === "spotlight" ? "Spotlight" : "Máscara"}
+                                                        + {effectInsertMode === "spotlight" ? "Spotlight" : "Máscara"}
                                                     </span>
                                                 </div>
                                             </div>
