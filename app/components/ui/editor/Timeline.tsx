@@ -763,8 +763,8 @@ export function Timeline({
                                                 isSelected={fragment.id === selectedSpotlightFragmentId}
                                                 contentWidth={contentWidth}
                                                 videoDuration={validDuration}
-                                                currentTime={currentTime}
                                                 otherFragments={spotlightFragments.filter((item) => item.id !== fragment.id)}
+                                                currentTime={currentTime}
                                                 onSelect={() => onSelectSpotlightFragment?.(fragment.id)}
                                                 onUpdate={(updates) => onUpdateSpotlightFragment?.(fragment.id, updates)}
                                                 onDragStateChange={(dragging) => {
@@ -794,8 +794,6 @@ export function Timeline({
                                                         setIsHoveringEffectsRow(false);
                                                     }
                                                 }}
-                                                onMouseEnter={() => setIsOverFragment(true)}
-                                                onMouseLeave={() => setIsOverFragment(false)}
                                             />
                                         ))}
 
