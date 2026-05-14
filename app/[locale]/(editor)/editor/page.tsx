@@ -2650,18 +2650,6 @@ export default function Editor() {
         [zoomFragments, selectedZoomFragmentId]
     );
 
-    const handleSelectSpotlightFragment = useCallback((fragmentId: string | null) => {
-        setSelectedSpotlightFragmentId(fragmentId);
-
-        if (fragmentId) {
-            setActiveTool("spotlight");
-            setSelectedZoomFragmentId(null);
-            setSelectedAudioTrackId(null);
-            setSelectedVideoClipId(null);
-            setSelectedElementId(null);
-        }
-    }, []);
-
     const handleAddSpotlightFragment = useCallback((startTime: number) => {
         const safeStart = Math.max(0, Math.min(videoDuration, startTime));
         const duration = Math.min(DEFAULT_SPOTLIGHT_DURATION, Math.max(0.5, videoDuration - safeStart));
