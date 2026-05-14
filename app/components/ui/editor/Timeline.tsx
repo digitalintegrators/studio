@@ -386,6 +386,45 @@ export function Timeline({
 
                     {/* Label sidebar */}
                     <LabelSidebar audioTracksCount={audioTracks.length} spotlightTracksCount={spotlightFragments.length + maskFragments.length} />
+
+                    <div
+                        data-effect-interactive
+                        className="absolute left-[270px] top-2 z-40 hidden items-center overflow-hidden rounded-full border border-white/10 bg-black/55 p-0.5 shadow-[0_8px_28px_rgba(0,0,0,0.35)] backdrop-blur-xl md:flex"
+                        onClick={(event) => event.stopPropagation()}
+                        aria-label="Selector de efecto"
+                    >
+                        <button
+                            type="button"
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                setPendingEffectType("spotlight");
+                            }}
+                            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-bold transition ${
+                                pendingEffectType === "spotlight"
+                                    ? "bg-amber-400 text-black shadow-[0_0_18px_rgba(251,191,36,0.25)]"
+                                    : "text-amber-200/75 hover:bg-amber-400/10 hover:text-amber-100"
+                            }`}
+                        >
+                            <Icon icon="solar:flashlight-on-bold" width="12" height="12" aria-hidden="true" />
+                            Spot
+                        </button>
+                        <button
+                            type="button"
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                setPendingEffectType("mask");
+                            }}
+                            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-bold transition ${
+                                pendingEffectType === "mask"
+                                    ? "bg-fuchsia-400 text-black shadow-[0_0_18px_rgba(232,121,249,0.25)]"
+                                    : "text-fuchsia-200/75 hover:bg-fuchsia-400/10 hover:text-fuchsia-100"
+                            }`}
+                        >
+                            <Icon icon="solar:mask-happly-bold" width="12" height="12" aria-hidden="true" />
+                            Máscara
+                        </button>
+                    </div>
+
                     {/* Scrollable content */}
                     <div
                         ref={trackRef}
@@ -647,6 +686,7 @@ export function Timeline({
                                     }}
                                 >
                                     <div
+                                        data-effect-interactive
                                         className="h-full flex items-center relative px-1"
                                         style={{ width: contentWidth > 0 ? contentWidth : '100%' }}
                                     >
@@ -725,6 +765,7 @@ export function Timeline({
 
                                 {/* Effects track: Spotlight + editable mask */}
                                 <div
+                                    data-effect-interactive
                                     className="h-10 shrink-0 flex items-center border-t border-white/5 relative bg-gradient-to-r from-amber-950/20 via-fuchsia-950/20 to-transparent"
                                     onMouseMove={(e) => {
                                         if (isDraggingEffectFragment) return;
@@ -820,37 +861,6 @@ export function Timeline({
                                                 </div>
                                             </div>
                                         )}
-
-                                        <div className="absolute right-2 top-1/2 z-30 flex -translate-y-1/2 overflow-hidden rounded-full border border-white/10 bg-black/45 p-0.5 backdrop-blur-md">
-                                            <button
-                                                type="button"
-                                                onClick={(event) => {
-                                                    event.stopPropagation();
-                                                    setPendingEffectType("spotlight");
-                                                }}
-                                                className={`rounded-full px-2 py-1 text-[9px] font-semibold transition ${
-                                                    pendingEffectType === "spotlight"
-                                                        ? "bg-amber-400 text-black"
-                                                        : "text-amber-200/70 hover:bg-amber-400/10"
-                                                }`}
-                                            >
-                                                Spot
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={(event) => {
-                                                    event.stopPropagation();
-                                                    setPendingEffectType("mask");
-                                                }}
-                                                className={`rounded-full px-2 py-1 text-[9px] font-semibold transition ${
-                                                    pendingEffectType === "mask"
-                                                        ? "bg-fuchsia-400 text-black"
-                                                        : "text-fuchsia-200/70 hover:bg-fuchsia-400/10"
-                                                }`}
-                                            >
-                                                Máscara
-                                            </button>
-                                        </div>
                                     </div>
                                 </div>
 
