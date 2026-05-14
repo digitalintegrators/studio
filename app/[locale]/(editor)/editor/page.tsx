@@ -2602,7 +2602,7 @@ export default function Editor() {
         setSpotlightFragments((prev) => [...prev, newFragment].sort((a, b) => a.startTime - b.startTime));
         setSelectedSpotlightFragmentId(newFragment.id);
         setSelectedZoomFragmentId(null);
-        setActiveTool("select");
+        setActiveTool("move");
     }, [videoDuration]);
 
     const handleUpdateSpotlightFragment = useCallback((fragmentId: string, updates: Partial<SpotlightFragment>) => {
