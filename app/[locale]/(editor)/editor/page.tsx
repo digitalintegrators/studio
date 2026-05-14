@@ -2654,11 +2654,11 @@ export default function Editor() {
         setSelectedSpotlightFragmentId(fragmentId);
 
         if (fragmentId) {
+            setActiveTool("spotlight");
             setSelectedZoomFragmentId(null);
             setSelectedAudioTrackId(null);
             setSelectedVideoClipId(null);
             setSelectedElementId(null);
-            setActiveTool("zoom");
         }
     }, []);
 
@@ -2877,6 +2877,18 @@ export default function Editor() {
                             if (tool !== "zoom") {
                                 setSelectedZoomFragmentId(null);
                             }
+
+                            if (tool !== "audio") {
+                                setSelectedAudioTrackId(null);
+                            }
+
+                            if (tool !== "videos") {
+                                setSelectedVideoClipId(null);
+                            }
+
+                            if (tool !== "elements") {
+                                setSelectedElementId(null);
+                            }
                         }}
                         onVideoUpload={handleVideoUpload}
                         isUploading={isUploading}
@@ -3089,6 +3101,7 @@ export default function Editor() {
                         isRecordedVideo={isRecordedVideo}
                         spotlightFragments={spotlightFragments}
                         selectedSpotlightFragmentId={selectedSpotlightFragmentId}
+                        isSpotlightEditing={activeTool === "spotlight" && !!selectedSpotlightFragmentId && !isPlaying}
                         onSelectSpotlightFragment={handleSelectSpotlightFragment}
                         onUpdateSpotlightFragment={handleUpdateSpotlightFragment}
                         onCameraConfigChange={handleCameraConfigChange}
@@ -3113,9 +3126,7 @@ export default function Editor() {
                         }}
                     />
 
-                    {isVideoMode &&
-                        activeTool === "spotlight" &&
-                        selectedSpotlightFragment && (
+                    {isVideoMode && activeTool === "spotlight" && selectedSpotlightFragment && (
                         <motion.div
                             initial={{ opacity: 0, y: 12, scale: 0.98 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
