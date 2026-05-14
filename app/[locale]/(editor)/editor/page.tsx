@@ -3079,6 +3079,8 @@ export default function Editor() {
                         isRecordedVideo={isRecordedVideo}
                         spotlightFragments={spotlightFragments}
                         selectedSpotlightFragmentId={selectedSpotlightFragmentId}
+                        onSelectSpotlightFragment={handleSelectSpotlightFragment}
+                        onUpdateSpotlightFragment={handleUpdateSpotlightFragment}
                         onCameraConfigChange={handleCameraConfigChange}
                         onCameraClick={handleCameraClick}
                         onEnded={() => {
