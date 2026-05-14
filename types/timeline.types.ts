@@ -1,6 +1,7 @@
 import { ZoomFragment } from "./zoom.types";
 import type { AudioTrack, UploadedAudio } from "./audio.types";
 import type { VideoTrackClip } from "./video-track.types";
+import type { SpotlightFragment } from "./spotlight.types";
 
 export interface TrimRange {
     start: number;
@@ -31,6 +32,12 @@ export interface TimelineProps {
     onAddZoomFragment?: (startTime: number) => void;
     onUpdateZoomFragment?: (fragmentId: string, updates: Partial<ZoomFragment>) => void;
     onActivateZoomTool?: () => void;
+    // Spotlight props
+    spotlightFragments?: SpotlightFragment[];
+    selectedSpotlightFragmentId?: string | null;
+    onSelectSpotlightFragment?: (fragmentId: string | null) => void;
+    onAddSpotlightFragment?: (startTime: number) => void;
+    onUpdateSpotlightFragment?: (fragmentId: string, updates: Partial<SpotlightFragment>) => void;
     // Audio props
     audioTracks?: AudioTrack[];
     uploadedAudios?: UploadedAudio[];
