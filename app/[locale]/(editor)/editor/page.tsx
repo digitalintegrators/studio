@@ -928,6 +928,7 @@ export default function Editor() {
                 cropArea,
                 trimRange,
                 zoomFragments,
+                spotlightFragments,
                 mockupId,
                 mockupConfig,
                 canvasElements,
