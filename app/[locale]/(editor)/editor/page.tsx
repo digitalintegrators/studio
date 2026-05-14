@@ -326,6 +326,7 @@ export default function Editor() {
     // Editable mask fragments state
     const [maskFragments, setMaskFragments] = useState<EditableMaskFragment[]>([]);
     const [selectedMaskFragmentId, setSelectedMaskFragmentId] = useState<string | null>(null);
+    const [effectInsertMode, setEffectInsertMode] = useState<"spotlight" | "mask">("mask");
 
     useEffect(() => {
         if (!selectedSpotlightFragmentId && !selectedMaskFragmentId) return;
@@ -2791,6 +2792,7 @@ export default function Editor() {
         setSelectedSpotlightFragmentId(newFragment.id);
         setSelectedMaskFragmentId(null);
         setSelectedZoomFragmentId(null);
+        setEffectInsertMode("spotlight");
         setActiveTool("spotlight");
     }, [videoDuration]);
 
@@ -2844,6 +2846,7 @@ export default function Editor() {
             setSelectedVideoClipId(null);
             setSelectedElementId(null);
             setSelectedSpotlightFragmentId(null);
+            setEffectInsertMode("mask");
             setActiveTool("mask");
         }
     }, [maskFragments]);
@@ -2860,6 +2863,7 @@ export default function Editor() {
         setSelectedMaskFragmentId(newFragment.id);
         setSelectedSpotlightFragmentId(null);
         setSelectedZoomFragmentId(null);
+        setEffectInsertMode("mask");
         setActiveTool("mask");
 
         const targetTime = Math.max(0, safeStart + 0.05);
@@ -3770,6 +3774,16 @@ export default function Editor() {
                                 videoMaskConfig={videoMaskConfig}
                                 onVideoMaskConfigChange={setVideoMaskConfig}
                                 videoPreviewImageUrl={getThumbnailForTime(currentDisplayTime)?.dataUrl ?? null}
+                                effectInsertMode={effectInsertMode}
+                                onEffectInsertModeChange={(mode) => {
+                                    setEffectInsertMode(mode);
+                                    setActiveTool(mode === "spotlight" ? "spotlight" : "mask");
+                                    if (mode === "spotlight") {
+                                        setSelectedMaskFragmentId(null);
+                                    } else {
+                                        setSelectedSpotlightFragmentId(null);
+                                    }
+                                }}
                             />
 
                             <Suspense fallback={<TimelineSkeleton />}>
@@ -3805,6 +3819,7 @@ export default function Editor() {
                                     onSelectMaskFragment={handleSelectMaskFragment}
                                     onAddMaskFragment={handleAddMaskFragment}
                                     onUpdateMaskFragment={handleUpdateMaskFragment}
+                                    effectInsertMode={effectInsertMode}
                                     audioTracks={audioTracks}
                                     uploadedAudios={uploadedAudios}
                                     selectedAudioTrackId={selectedAudioTrackId}
