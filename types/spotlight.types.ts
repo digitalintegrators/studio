@@ -1,4 +1,4 @@
-export type SpotlightShape = "rounded" | "rectangle" | "circle";
+export type SpotlightFragmentShape = "rounded" | "rectangle" | "circle";
 
 export interface SpotlightFragment {
   id: string;
@@ -8,7 +8,7 @@ export interface SpotlightFragment {
   y: number;
   width: number;
   height: number;
-  shape: SpotlightShape;
+  shape: SpotlightFragmentShape;
   intensity: number;
   blur: number;
   radius: number;
