@@ -76,6 +76,13 @@ type ExtendedVideoCanvasProps = VideoCanvasProps & {
     fragmentId: string,
     updates: Partial<SpotlightFragment>,
   ) => void;
+  maskFragments?: EditableMaskFragment[];
+  selectedMaskFragmentId?: string | null;
+  onSelectMaskFragment?: (fragmentId: string | null) => void;
+  onUpdateMaskFragment?: (
+    fragmentId: string,
+    updates: Partial<EditableMaskFragment>,
+  ) => void;
 };
 type ExtendedCursorConfig = CursorConfig & {
   spotlightEnabled?: boolean;
@@ -220,10 +227,14 @@ export const VideoCanvas = forwardRef<
     onAddElement,
     onSelectSpotlightFragment,
     onUpdateSpotlightFragment,
+    onSelectMaskFragment,
+    onUpdateMaskFragment,
   } = props;
   const { cursorConfig = DEFAULT_CURSOR_CONFIG, cursorData } = props;
   const extendedCursorConfig = cursorConfig as ExtendedCursorConfig;
   const spotlightFragments = props.spotlightFragments ?? [];
+  const maskFragments = props.maskFragments ?? [];
+  const selectedMaskFragmentId = props.selectedMaskFragmentId ?? null;
   const wallpaperUrl = getWallpaperUrl(selectedWallpaper);
   const hasMedia = mediaType === "video" ? !!videoUrl : !!imageUrl;
   const currentThumbnail = useMemo<VideoThumbnail | null>(() => {
@@ -308,6 +319,19 @@ export const VideoCanvas = forwardRef<
       ) ?? null
     );
   }, [mediaType, hasMedia, spotlightFragments, currentTime]);
+
+  const activeMaskFragment = useMemo<EditableMaskFragment | null>(() => {
+    if (mediaType !== "video" || !hasMedia || maskFragments.length === 0)
+      return null;
+
+    return (
+      maskFragments.find(
+        (fragment) =>
+          currentTime >= fragment.startTime && currentTime <= fragment.endTime,
+      ) ?? null
+    );
+  }, [mediaType, hasMedia, maskFragments, currentTime]);
+
   const shouldShowUnsplashOverride =
     backgroundTab === "wallpaper" && unsplashOverrideUrl !== "";
   const shouldShowWallpaper =
@@ -405,6 +429,18 @@ export const VideoCanvas = forwardRef<
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const [isDraggingSpotlight, setIsDraggingSpotlight] = useState(false);
   const spotlightDragRef = useRef<{
+    pointerId: number;
+    fragmentId: string;
+    mode: "move" | "resize";
+    startX: number;
+    startY: number;
+    initialX: number;
+    initialY: number;
+    initialWidth: number;
+    initialHeight: number;
+  } | null>(null);
+  const [isDraggingMask, setIsDraggingMask] = useState(false);
+  const maskDragRef = useRef<{
     pointerId: number;
     fragmentId: string;
     mode: "move" | "resize";
@@ -2713,7 +2749,7 @@ export const VideoCanvas = forwardRef<
                       }}
                     />
 
-                    {activeMaskFragment.id === props.selectedMaskFragmentId && (
+                    {activeMaskFragment.id === selectedMaskFragmentId && (
                       <div
                         role="button"
                         aria-label="Mover máscara"
