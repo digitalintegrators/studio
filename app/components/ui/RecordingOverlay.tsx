@@ -18,6 +18,8 @@ export default function RecordingOverlay() {
     isRecording,
     recordingTime,
     stopRecording,
+    state,
+    countdown,
   } = useRecording();
 
   const [pipSupported, setPipSupported] = useState(false);
@@ -29,6 +31,8 @@ export default function RecordingOverlay() {
   const formattedTime = useMemo(() => {
     return formatTime(recordingTime);
   }, [recordingTime]);
+
+  const isCountdown = state === "countdown";
 
   useEffect(() => {
     setPipSupported(
@@ -64,10 +68,10 @@ export default function RecordingOverlay() {
 
   const openFloatingTimer = async () => {
     try {
-      // @ts-ignore
+      // @ts-ignore - Document Picture-in-Picture is still experimental in TS DOM libs.
       if (!window.documentPictureInPicture) return;
 
-      // @ts-ignore
+      // @ts-ignore - Document Picture-in-Picture is still experimental in TS DOM libs.
       const pipWindow = await window.documentPictureInPicture.requestWindow({
         width: 320,
         height: 120,
@@ -187,61 +191,85 @@ export default function RecordingOverlay() {
     }
   };
 
-  if (!isRecording) return null;
+  if (!isRecording && !isCountdown) return null;
 
   return (
     <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0, y: -20, x: "-50%" }}
-        animate={{ opacity: 1, y: 0, x: "-50%" }}
-        exit={{ opacity: 0, y: -20, x: "-50%" }}
-        className="fixed top-5 left-1/2 z-[9999]"
-      >
-        <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/70 backdrop-blur-xl px-4 py-3 shadow-[0_10px_40px_rgba(0,0,0,0.45)]">
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <div className="h-3 w-3 rounded-full bg-red-500" />
-              <div className="absolute inset-0 rounded-full bg-red-500 opacity-60 animate-ping" />
+      {isCountdown && (
+        <motion.div
+          key="recording-countdown-overlay"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[999999] flex items-center justify-center bg-black/65 backdrop-blur-md"
+        >
+          <motion.div
+            key={countdown}
+            initial={{ scale: 0.6, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 1.2, opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="text-[140px] font-black tracking-[-0.08em] text-white drop-shadow-[0_20px_80px_rgba(56,189,248,0.35)]"
+          >
+            {countdown}
+          </motion.div>
+        </motion.div>
+      )}
+
+      {isRecording && (
+        <motion.div
+          key="recording-floating-overlay"
+          initial={{ opacity: 0, y: -20, x: "-50%" }}
+          animate={{ opacity: 1, y: 0, x: "-50%" }}
+          exit={{ opacity: 0, y: -20, x: "-50%" }}
+          className="fixed top-5 left-1/2 z-[9999]"
+        >
+          <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/70 px-4 py-3 shadow-[0_10px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <div className="h-3 w-3 rounded-full bg-red-500" />
+                <div className="absolute inset-0 rounded-full bg-red-500 opacity-60 animate-ping" />
+              </div>
+
+              <div className="flex flex-col leading-none">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">
+                  Recording
+                </span>
+
+                <span className="text-lg font-bold tabular-nums text-white">
+                  {formattedTime}
+                </span>
+              </div>
             </div>
 
-            <div className="flex flex-col leading-none">
-              <span className="text-[10px] uppercase tracking-[0.18em] text-white/45 font-semibold">
-                Recording
-              </span>
+            <div className="h-8 w-px bg-white/10" />
 
-              <span className="text-white font-bold text-lg tabular-nums">
-                {formattedTime}
-              </span>
-            </div>
-          </div>
+            {pipSupported && (
+              <button
+                type="button"
+                onClick={openFloatingTimer}
+                className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-all ${
+                  pipActive
+                    ? "border border-cyan-400/20 bg-cyan-500/20 text-cyan-300"
+                    : "border border-white/10 bg-white/5 text-white/80 hover:bg-white/10"
+                }`}
+              >
+                <Icon icon="solar:sidebar-minimalistic-bold" width="16" />
+                Timer flotante
+              </button>
+            )}
 
-          <div className="h-8 w-px bg-white/10" />
-
-          {pipSupported && (
             <button
               type="button"
-              onClick={openFloatingTimer}
-              className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-all ${
-                pipActive
-                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-400/20"
-                  : "bg-white/5 hover:bg-white/10 text-white/80 border border-white/10"
-              }`}
+              onClick={stopRecording}
+              className="flex items-center gap-2 rounded-xl bg-red-500 px-4 py-2 font-semibold text-white shadow-[0_8px_24px_rgba(239,68,68,0.35)] transition-colors hover:bg-red-400"
             >
-              <Icon icon="solar:sidebar-minimalistic-bold" width="16" />
-              Timer flotante
+              <Icon icon="solar:stop-bold" width="16" />
+              Detener
             </button>
-          )}
-
-          <button
-            type="button"
-            onClick={stopRecording}
-            className="flex items-center gap-2 rounded-xl bg-red-500 hover:bg-red-400 transition-colors px-4 py-2 text-white font-semibold shadow-[0_8px_24px_rgba(239,68,68,0.35)]"
-          >
-            <Icon icon="solar:stop-bold" width="16" />
-            Detener
-          </button>
-        </div>
-      </motion.div>
+          </div>
+        </motion.div>
+      )}
     </AnimatePresence>
   );
 }
