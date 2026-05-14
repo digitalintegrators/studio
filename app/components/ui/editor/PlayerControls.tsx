@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { AspectRatioSelect } from "../AspectRatioSelect";
 import { formatTime } from "@/lib/video.utils";
-import { MAX_ZOOM, MIN_ZOOM, ZOOM_STEP, type PlayerControlsProps } from "@/types/player-control.types";
+import { MAX_ZOOM, MIN_ZOOM, ZOOM_STEP, type EffectInsertMode, type PlayerControlsProps } from "@/types/player-control.types";
 import { TooltipAction } from "@/components/ui/tooltip-action";
 import { ImageMaskEditor } from "./ImageMaskEditor";
 
@@ -29,6 +29,8 @@ export function PlayerControls({
     videoMaskConfig = { enabled: false },
     onVideoMaskConfigChange,
     videoPreviewImageUrl,
+    effectInsertMode = "mask",
+    onEffectInsertModeChange,
 }: PlayerControlsProps) {
     const t = useTranslations("playerControls");
 
@@ -95,6 +97,10 @@ export function PlayerControls({
 
     const fullscreenLabel = isFullscreen ? t("fullscreen.exit") : t("fullscreen.enter");
     const playPauseLabel = isPlaying ? t("transport.pause") : t("transport.play");
+
+    const handleEffectModeChange = useCallback((mode: EffectInsertMode) => {
+        onEffectInsertModeChange?.(mode);
+    }, [onEffectInsertModeChange]);
 
     return (
         <div
@@ -176,6 +182,38 @@ export function PlayerControls({
                     onMaskConfigChange={onVideoMaskConfigChange}
                     canvasImageUrl={videoPreviewImageUrl}
                 />
+            </div>
+
+            <div
+                className="hidden md:flex items-center overflow-hidden rounded-full border border-white/10 bg-black/50 p-0.5 shadow-[0_8px_28px_rgba(0,0,0,0.28)] backdrop-blur-xl"
+                role="group"
+                aria-label="Tipo de efecto a insertar"
+            >
+                <button
+                    type="button"
+                    onClick={() => handleEffectModeChange("spotlight")}
+                    className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-bold transition ${
+                        effectInsertMode === "spotlight"
+                            ? "bg-amber-400 text-black shadow-[0_0_18px_rgba(251,191,36,0.25)]"
+                            : "text-amber-200/75 hover:bg-amber-400/10 hover:text-amber-100"
+                    }`}
+                >
+                    <Icon icon="solar:flashlight-on-bold" width="12" height="12" aria-hidden="true" />
+                    Spot
+                </button>
+
+                <button
+                    type="button"
+                    onClick={() => handleEffectModeChange("mask")}
+                    className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-bold transition ${
+                        effectInsertMode === "mask"
+                            ? "bg-fuchsia-400 text-black shadow-[0_0_18px_rgba(232,121,249,0.25)]"
+                            : "text-fuchsia-200/75 hover:bg-fuchsia-400/10 hover:text-fuchsia-100"
+                    }`}
+                >
+                    <Icon icon="solar:mask-happly-bold" width="12" height="12" aria-hidden="true" />
+                    Máscara
+                </button>
             </div>
 
             {/* Middle Section: Transport Controls */}
