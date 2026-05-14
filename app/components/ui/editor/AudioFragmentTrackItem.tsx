@@ -10,7 +10,8 @@ import {
 } from "@/types/audio.types";
 import { formatTime } from "@/lib/video.utils";
 
-const WAVEFORM_BARS = 64;
+const MIN_WAVEFORM_BARS = 96;
+const MAX_WAVEFORM_BARS = 520;
 
 function generateWaveformBars(seed: string, count: number) {
     let hash = 0;
@@ -30,6 +31,46 @@ function generateWaveformBars(seed: string, count: number) {
     });
 }
 
+async function generateRealWaveformBars(audioUrl: string, count: number): Promise<number[]> {
+    const AudioCtx =
+        window.AudioContext ||
+        (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+
+    if (!AudioCtx) return [];
+
+    const response = await fetch(audioUrl);
+    const arrayBuffer = await response.arrayBuffer();
+    const audioContext = new AudioCtx();
+
+    try {
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+
+        if (audioBuffer.numberOfChannels === 0) return [];
+
+        const channelData = audioBuffer.getChannelData(0);
+        const blockSize = Math.max(1, Math.floor(channelData.length / count));
+        const peaks: number[] = [];
+
+        for (let i = 0; i < count; i += 1) {
+            const start = i * blockSize;
+            let sum = 0;
+
+            for (let j = 0; j < blockSize; j += 1) {
+                const value = channelData[start + j] ?? 0;
+                sum += value * value;
+            }
+
+            peaks.push(Math.sqrt(sum / blockSize));
+        }
+
+        const max = Math.max(...peaks, 0.001);
+
+        return peaks.map((peak) => Math.max(12, Math.min(100, Math.round((peak / max) * 100))));
+    } finally {
+        await audioContext.close().catch(() => undefined);
+    }
+}
+
 export function AudioFragmentTrackItem({
     track,
     audio,
@@ -46,6 +87,7 @@ export function AudioFragmentTrackItem({
     const [isDragging, setIsDragging] = useState(false);
     const [isResizing, setIsResizing] = useState<"start" | "end" | null>(null);
     const [isHovered, setIsHovered] = useState(false);
+    const [decodedWaveformBars, setDecodedWaveformBars] = useState<number[] | null>(null);
 
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -74,12 +116,23 @@ export function AudioFragmentTrackItem({
     const initialWidth = timeToPixels(track.duration);
     const visualWidth = Math.max(initialWidth, MIN_VISUAL_WIDTH_PX);
 
-    const waveformBars = useMemo(() => {
+    const waveformBarCount = useMemo(() => {
+        return Math.max(
+            MIN_WAVEFORM_BARS,
+            Math.min(MAX_WAVEFORM_BARS, Math.ceil(Math.max(visualWidth, 320) / 4))
+        );
+    }, [visualWidth]);
+
+    const fallbackWaveformBars = useMemo(() => {
         return generateWaveformBars(
             `${track.id}-${audio?.name ?? track.name ?? "audio"}`,
-            WAVEFORM_BARS
+            waveformBarCount
         );
-    }, [track.id, track.name, audio?.name]);
+    }, [track.id, track.name, audio?.name, waveformBarCount]);
+
+    const waveformBars = decodedWaveformBars && decodedWaveformBars.length > 0
+        ? decodedWaveformBars
+        : fallbackWaveformBars;
 
     const durationLabel = useMemo(() => {
         return formatTime(track.duration);
@@ -88,6 +141,29 @@ export function AudioFragmentTrackItem({
     const volumePercent = useMemo(() => {
         return Math.round((track.volume ?? 1) * 100);
     }, [track.volume]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        if (!audio?.url) {
+            setDecodedWaveformBars(null);
+            return;
+        }
+
+        generateRealWaveformBars(audio.url, waveformBarCount)
+            .then((bars) => {
+                if (!cancelled) {
+                    setDecodedWaveformBars(bars.length > 0 ? bars : null);
+                }
+            })
+            .catch(() => {
+                if (!cancelled) setDecodedWaveformBars(null);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [audio?.url, waveformBarCount]);
 
     useEffect(() => {
         if (!isDragging && !isResizing) {
@@ -349,11 +425,11 @@ export function AudioFragmentTrackItem({
                         </span>
                     </div>
 
-                    <div className="flex h-2.5 items-center gap-[2px] overflow-hidden">
+                    <div className="flex h-2.5 w-full items-center gap-px overflow-hidden">
                         {waveformBars.map((height, index) => (
                             <span
                                 key={`${track.id}-wave-${index}`}
-                                className={`w-[2px] shrink-0 rounded-full ${
+                                className={`min-w-[1px] flex-1 rounded-full ${
                                     isSelected ? "bg-cyan-100/90" : "bg-cyan-100/55"
                                 }`}
                                 style={{
