@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useImperativeHandle, forwardRef, useMemo, useState } from "react";
+import { useRef, useEffect, useImperativeHandle, forwardRef, useMemo, useState, useCallback } from "react";
 import type { VideoCanvasHandle, VideoCanvasProps, VideoThumbnail } from "@/types";
 import type { ImageElement, SvgElement } from "@/types/canvas-elements.types";
 import { getCameraLayout } from "@/types/camera.types";
