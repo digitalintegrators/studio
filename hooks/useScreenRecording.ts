@@ -825,9 +825,9 @@ export function useScreenRecording() {
         }
 
         setState("countdown");
-        setCountdown(3);
+        setCountdown(5);
 
-        let count = 3;
+        let count = 5;
 
         const interval = window.setInterval(() => {
           count -= 1;
