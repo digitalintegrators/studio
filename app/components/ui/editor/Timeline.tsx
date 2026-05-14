@@ -773,8 +773,6 @@ export function Timeline({
                                                         setIsHoveringEffectsRow(false);
                                                     }
                                                 }}
-                                                onMouseEnter={() => setIsOverFragment(true)}
-                                                onMouseLeave={() => setIsOverFragment(false)}
                                             />
                                         ))}
 
