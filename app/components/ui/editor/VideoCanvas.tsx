@@ -25,6 +25,7 @@ import { LayersPanel } from "./LayersPanel";
 import { Icon } from "@iconify/react";
 import type { CursorConfig, CursorRecordingData, CursorKeyframe } from "@/types/cursor.types";
 import { DEFAULT_CURSOR_CONFIG, interpolateCursorPosition } from "@/types/cursor.types";
+import type { SpotlightFragment } from "@/types/spotlight.types";
 
 export type { VideoCanvasHandle, VideoCanvasProps };
 
@@ -32,6 +33,8 @@ type ExtendedVideoCanvasProps = VideoCanvasProps & {
     cursorConfig?: CursorConfig;
     cursorData?: CursorRecordingData;
     isRecordedVideo?: boolean;
+    spotlightFragments?: SpotlightFragment[];
+    selectedSpotlightFragmentId?: string | null;
 };
 
 type ExtendedCursorConfig = CursorConfig & {
@@ -177,6 +180,7 @@ export const VideoCanvas = forwardRef<VideoCanvasHandle, ExtendedVideoCanvasProp
     } = props;
 
     const extendedCursorConfig = cursorConfig as ExtendedCursorConfig;
+    const spotlightFragments = props.spotlightFragments ?? [];
 
     const wallpaperUrl = getWallpaperUrl(selectedWallpaper);
     const hasMedia = mediaType === "video" ? !!videoUrl : !!imageUrl;
@@ -247,6 +251,12 @@ export const VideoCanvas = forwardRef<VideoCanvasHandle, ExtendedVideoCanvasProp
     const shouldShowSpotlight =
         shouldShowCursorOverlay &&
         extendedCursorConfig.spotlightEnabled === true;
+
+    const activeSpotlightFragment = useMemo(() => {
+        if (mediaType !== "video" || !hasMedia || spotlightFragments.length === 0) return null;
+
+        return spotlightFragments.find((fragment) => currentTime >= fragment.startTime && currentTime <= fragment.endTime) ?? null;
+    }, [mediaType, hasMedia, spotlightFragments, currentTime]);
 
     const shouldShowUnsplashOverride = backgroundTab === "wallpaper" && unsplashOverrideUrl !== "";
     const shouldShowWallpaper = backgroundTab === "wallpaper" && selectedWallpaper >= 0 && !shouldShowUnsplashOverride;
@@ -970,6 +980,60 @@ export const VideoCanvas = forwardRef<VideoCanvasHandle, ExtendedVideoCanvasProp
         }
     };
 
+
+    const drawSpotlightToCanvas = (
+        ctx: CanvasRenderingContext2D,
+        canvasWidth: number,
+        canvasHeight: number
+    ) => {
+        if (!activeSpotlightFragment) return;
+
+        const fragment = activeSpotlightFragment;
+        const x = (fragment.x / 100) * canvasWidth;
+        const y = (fragment.y / 100) * canvasHeight;
+        const width = (fragment.width / 100) * canvasWidth;
+        const height = (fragment.height / 100) * canvasHeight;
+        const left = x - width / 2;
+        const top = y - height / 2;
+        const intensity = Math.max(0, Math.min(0.9, fragment.intensity ?? 0.72));
+        const radius = Math.max(0, fragment.radius ?? 18) * (canvasWidth / 1920);
+
+        ctx.save();
+
+        ctx.fillStyle = `rgba(0, 0, 0, ${intensity})`;
+        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+        ctx.globalCompositeOperation = "destination-out";
+
+        if (fragment.shape === "circle") {
+            ctx.beginPath();
+            ctx.ellipse(x, y, width / 2, height / 2, 0, 0, Math.PI * 2);
+            ctx.fillStyle = "black";
+            ctx.fill();
+        } else {
+            ctx.beginPath();
+
+            if (fragment.shape === "rounded") {
+                drawRoundedRect(ctx, left, top, width, height, radius);
+            } else {
+                ctx.rect(left, top, width, height);
+            }
+
+            ctx.fillStyle = "black";
+            ctx.fill();
+        }
+
+        ctx.globalCompositeOperation = "source-over";
+
+        const glowGradient = ctx.createRadialGradient(x, y, 0, x, y, Math.max(width, height) * 0.72);
+        glowGradient.addColorStop(0, "rgba(255,255,255,0.18)");
+        glowGradient.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = glowGradient;
+        ctx.fillRect(left - width * 0.35, top - height * 0.35, width * 1.7, height * 1.7);
+
+        ctx.restore();
+    };
+
     const drawCursorToCanvas = (
         ctx: CanvasRenderingContext2D,
         canvasWidth: number,
@@ -1520,6 +1584,7 @@ export const VideoCanvas = forwardRef<VideoCanvasHandle, ExtendedVideoCanvasProp
         await renderCanvasElements(ctx, canvasElements, canvasWidth, canvasHeight, false);
         ctx.restore();
 
+        drawSpotlightToCanvas(ctx, canvasWidth, canvasHeight);
         await drawCameraOverlay(ctx, canvasWidth, canvasHeight);
         drawCursorToCanvas(ctx, canvasWidth, canvasHeight, frameTime);
     };
@@ -2231,6 +2296,49 @@ export const VideoCanvas = forwardRef<VideoCanvasHandle, ExtendedVideoCanvasProp
                                         setEditingTextId(null);
                                     }}
                                 />
+
+
+                                {activeSpotlightFragment && (
+                                    <div
+                                        className="absolute inset-0 pointer-events-none"
+                                        style={{
+                                            zIndex: VIDEO_Z_INDEX + 150,
+                                            backdropFilter: activeSpotlightFragment.blur ? `blur(${activeSpotlightFragment.blur}px)` : undefined,
+                                        }}
+                                    >
+                                        <div
+                                            className="absolute inset-0"
+                                            style={{
+                                                background: `rgba(0,0,0,${activeSpotlightFragment.intensity ?? 0.72})`,
+                                                WebkitMaskImage:
+                                                    activeSpotlightFragment.shape === "circle"
+                                                        ? `radial-gradient(ellipse ${(activeSpotlightFragment.width / 2).toFixed(2)}% ${(activeSpotlightFragment.height / 2).toFixed(2)}% at ${activeSpotlightFragment.x}% ${activeSpotlightFragment.y}%, transparent 0%, transparent 96%, black 100%)`
+                                                        : `radial-gradient(ellipse ${(activeSpotlightFragment.width / 1.65).toFixed(2)}% ${(activeSpotlightFragment.height / 1.65).toFixed(2)}% at ${activeSpotlightFragment.x}% ${activeSpotlightFragment.y}%, transparent 0%, transparent 58%, black 100%)`,
+                                                maskImage:
+                                                    activeSpotlightFragment.shape === "circle"
+                                                        ? `radial-gradient(ellipse ${(activeSpotlightFragment.width / 2).toFixed(2)}% ${(activeSpotlightFragment.height / 2).toFixed(2)}% at ${activeSpotlightFragment.x}% ${activeSpotlightFragment.y}%, transparent 0%, transparent 96%, black 100%)`
+                                                        : `radial-gradient(ellipse ${(activeSpotlightFragment.width / 1.65).toFixed(2)}% ${(activeSpotlightFragment.height / 1.65).toFixed(2)}% at ${activeSpotlightFragment.x}% ${activeSpotlightFragment.y}%, transparent 0%, transparent 58%, black 100%)`,
+                                            }}
+                                        />
+
+                                        <div
+                                            className="absolute border border-white/15 shadow-[0_0_70px_rgba(255,255,255,0.22)]"
+                                            style={{
+                                                left: `${activeSpotlightFragment.x}%`,
+                                                top: `${activeSpotlightFragment.y}%`,
+                                                width: `${activeSpotlightFragment.width}%`,
+                                                height: `${activeSpotlightFragment.height}%`,
+                                                transform: "translate(-50%, -50%)",
+                                                borderRadius:
+                                                    activeSpotlightFragment.shape === "circle"
+                                                        ? "9999px"
+                                                        : activeSpotlightFragment.shape === "rounded"
+                                                            ? `${activeSpotlightFragment.radius ?? 18}px`
+                                                            : "2px",
+                                            }}
+                                        />
+                                    </div>
+                                )}
 
                                 {shouldShowSpotlight && cursorFrame && (
                                     <div
