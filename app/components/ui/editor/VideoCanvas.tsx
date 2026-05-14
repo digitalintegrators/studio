@@ -35,6 +35,7 @@ type ExtendedVideoCanvasProps = VideoCanvasProps & {
     isRecordedVideo?: boolean;
     spotlightFragments?: SpotlightFragment[];
     selectedSpotlightFragmentId?: string | null;
+    isSpotlightEditing?: boolean;
     onSelectSpotlightFragment?: (fragmentId: string | null) => void;
     onUpdateSpotlightFragment?: (fragmentId: string, updates: Partial<SpotlightFragment>) => void;
 };
@@ -174,6 +175,7 @@ export const VideoCanvas = forwardRef<VideoCanvasHandle, ExtendedVideoCanvasProp
         textToolActive = false,
         onTextToolDeactivate,
         onAddElement,
+        isSpotlightEditing = false,
         onSelectSpotlightFragment,
         onUpdateSpotlightFragment,
     } = props;
@@ -2419,45 +2421,43 @@ export const VideoCanvas = forwardRef<VideoCanvasHandle, ExtendedVideoCanvasProp
                                             }}
                                         />
 
-                                        <div
-                                            role="button"
-                                            aria-label="Mover spotlight"
-                                            tabIndex={0}
-                                            className="absolute border shadow-[0_0_70px_rgba(255,255,255,0.22)] pointer-events-auto cursor-move border-amber-300/95 ring-2 ring-amber-300/45"
-                                            style={{
-                                                left: `${activeSpotlightFragment.x}%`,
-                                                top: `${activeSpotlightFragment.y}%`,
-                                                width: `${activeSpotlightFragment.width}%`,
-                                                height: `${activeSpotlightFragment.height}%`,
-                                                transform: "translate(-50%, -50%)",
-                                                borderRadius:
-                                                    activeSpotlightFragment.shape === "circle"
-                                                        ? "9999px"
-                                                        : activeSpotlightFragment.shape === "rounded"
-                                                            ? `${activeSpotlightFragment.radius ?? 18}px`
-                                                            : "2px",
-                                                touchAction: "none",
-                                            }}
-                                            onPointerDown={(event) => handleSpotlightPointerDown(event, activeSpotlightFragment, "move")}
-                                            onClick={(event) => {
-                                                event.stopPropagation();
-                                                onSelectSpotlightFragment?.(activeSpotlightFragment.id);
-                                            }}
-                                        >
-                                            {activeSpotlightFragment && (
-                                                <>
-                                                    <div className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/40 bg-amber-300 shadow-[0_0_18px_rgba(251,191,36,0.65)]" />
-                                                    <div
-                                                        role="button"
-                                                        aria-label="Redimensionar spotlight"
-                                                        className="absolute -bottom-2 -right-2 h-5 w-5 cursor-nwse-resize rounded-full border border-black/40 bg-amber-300 shadow-[0_0_18px_rgba(251,191,36,0.65)]"
-                                                        style={{ touchAction: "none" }}
-                                                        onPointerDown={(event) => handleSpotlightPointerDown(event, activeSpotlightFragment, "resize")}
-                                                        onClick={(event) => event.stopPropagation()}
-                                                    />
-                                                </>
-                                            )}
-                                        </div>
+                                        {isSpotlightEditing && (
+                                            <div
+                                                role="button"
+                                                aria-label="Mover spotlight"
+                                                tabIndex={0}
+                                                className="absolute border shadow-[0_0_70px_rgba(255,255,255,0.22)] pointer-events-auto cursor-move border-amber-300/95 ring-2 ring-amber-300/45"
+                                                style={{
+                                                    left: `${activeSpotlightFragment.x}%`,
+                                                    top: `${activeSpotlightFragment.y}%`,
+                                                    width: `${activeSpotlightFragment.width}%`,
+                                                    height: `${activeSpotlightFragment.height}%`,
+                                                    transform: "translate(-50%, -50%)",
+                                                    borderRadius:
+                                                        activeSpotlightFragment.shape === "circle"
+                                                            ? "9999px"
+                                                            : activeSpotlightFragment.shape === "rounded"
+                                                                ? `${activeSpotlightFragment.radius ?? 18}px`
+                                                                : "2px",
+                                                    touchAction: "none",
+                                                }}
+                                                onPointerDown={(event) => handleSpotlightPointerDown(event, activeSpotlightFragment, "move")}
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    onSelectSpotlightFragment?.(activeSpotlightFragment.id);
+                                                }}
+                                            >
+                                                <div className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/40 bg-amber-300 shadow-[0_0_18px_rgba(251,191,36,0.65)]" />
+                                                <div
+                                                    role="button"
+                                                    aria-label="Redimensionar spotlight"
+                                                    className="absolute -bottom-2 -right-2 h-5 w-5 cursor-nwse-resize rounded-full border border-black/40 bg-amber-300 shadow-[0_0_18px_rgba(251,191,36,0.65)]"
+                                                    style={{ touchAction: "none" }}
+                                                    onPointerDown={(event) => handleSpotlightPointerDown(event, activeSpotlightFragment, "resize")}
+                                                    onClick={(event) => event.stopPropagation()}
+                                                />
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
