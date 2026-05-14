@@ -327,6 +327,32 @@ export default function Editor() {
     const [maskFragments, setMaskFragments] = useState<EditableMaskFragment[]>([]);
     const [selectedMaskFragmentId, setSelectedMaskFragmentId] = useState<string | null>(null);
 
+    useEffect(() => {
+        if (!selectedSpotlightFragmentId && !selectedMaskFragmentId) return;
+
+        const handlePointerDown = (event: PointerEvent) => {
+            const target = event.target as HTMLElement | null;
+            if (!target) return;
+
+            if (
+                target.closest("[data-effect-editor-panel]") ||
+                target.closest("[data-effect-interactive]") ||
+                target.closest("[data-video-canvas-effect]") ||
+                target.closest("[data-canvas-element]") ||
+                target.closest("[data-camera-overlay]")
+            ) {
+                return;
+            }
+
+            setSelectedSpotlightFragmentId(null);
+            setSelectedMaskFragmentId(null);
+        };
+
+        window.addEventListener("pointerdown", handlePointerDown, true);
+        return () => window.removeEventListener("pointerdown", handlePointerDown, true);
+    }, [selectedSpotlightFragmentId, selectedMaskFragmentId]);
+
+
     // Ref to always have the latest zoomFragments value (prevents stale closures)
     const zoomFragmentsRef = useRef<ZoomFragment[]>([]);
     useEffect(() => {
@@ -2730,14 +2756,28 @@ export default function Editor() {
         setSelectedSpotlightFragmentId(fragmentId);
 
         if (fragmentId) {
+            const fragment = spotlightFragments.find((item) => item.id === fragmentId);
+
+            if (fragment) {
+                const targetTime = Math.max(0, fragment.startTime + 0.05);
+                setCurrentTime(targetTime);
+                setScrubTime(targetTime);
+
+                if (videoRef.current) {
+                    videoRef.current.currentTime = targetTime;
+                }
+
+                canvasRef.current?.drawFrame?.();
+            }
+
             setSelectedZoomFragmentId(null);
             setSelectedAudioTrackId(null);
             setSelectedVideoClipId(null);
             setSelectedElementId(null);
             setSelectedMaskFragmentId(null);
-            setActiveTool("zoom");
+            setActiveTool("spotlight");
         }
-    }, []);
+    }, [spotlightFragments]);
 
     const handleAddSpotlightFragment = useCallback((startTime: number) => {
         const safeStart = Math.max(0, Math.min(videoDuration, startTime));
@@ -2751,7 +2791,7 @@ export default function Editor() {
         setSelectedSpotlightFragmentId(newFragment.id);
         setSelectedMaskFragmentId(null);
         setSelectedZoomFragmentId(null);
-        setActiveTool("zoom");
+        setActiveTool("spotlight");
     }, [videoDuration]);
 
     const handleUpdateSpotlightFragment = useCallback((fragmentId: string, updates: Partial<SpotlightFragment>) => {
@@ -2804,7 +2844,7 @@ export default function Editor() {
             setSelectedVideoClipId(null);
             setSelectedElementId(null);
             setSelectedSpotlightFragmentId(null);
-            setActiveTool("zoom");
+            setActiveTool("mask");
         }
     }, [maskFragments]);
 
@@ -2820,7 +2860,7 @@ export default function Editor() {
         setSelectedMaskFragmentId(newFragment.id);
         setSelectedSpotlightFragmentId(null);
         setSelectedZoomFragmentId(null);
-        setActiveTool("zoom");
+        setActiveTool("mask");
 
         const targetTime = Math.max(0, safeStart + 0.05);
         setCurrentTime(targetTime);
@@ -3273,11 +3313,12 @@ export default function Editor() {
                         }}
                     />
 
-                    {isVideoMode && selectedSpotlightFragment && (
+                    {isVideoMode && activeTool === "spotlight" && selectedSpotlightFragment && (
                         <motion.div
                             initial={{ opacity: 0, y: 12, scale: 0.98 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: 12, scale: 0.98 }}
+                            data-effect-editor-panel
                             className="absolute right-4 top-16 z-[80] w-[320px] rounded-2xl border border-amber-400/20 bg-[#111113]/95 p-4 text-white shadow-2xl backdrop-blur-xl"
                         >
                             <div className="mb-3 flex items-center justify-between gap-3">
@@ -3490,11 +3531,12 @@ export default function Editor() {
 
 
 
-                    {isVideoMode && !isPlaying && selectedMaskFragment && (
+                    {isVideoMode && activeTool === "mask" && !isPlaying && selectedMaskFragment && (
                         <motion.div
                             initial={{ opacity: 0, y: 12, scale: 0.98 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: 12, scale: 0.98 }}
+                            data-effect-editor-panel
                             className="absolute right-4 top-16 z-[80] w-[320px] rounded-2xl border border-fuchsia-400/20 bg-[#111113]/95 p-4 text-white shadow-2xl backdrop-blur-xl"
                         >
                             <div className="mb-3 flex items-center justify-between gap-3">
