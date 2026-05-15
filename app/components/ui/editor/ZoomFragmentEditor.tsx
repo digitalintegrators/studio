@@ -308,19 +308,29 @@ export function ZoomFragmentEditor({
                 </div>
 
 
-                <div className={`overflow-hidden rounded-2xl border transition-all duration-300 ${fragment.followCursor ? "border-cyan-300/25 bg-cyan-400/[0.075] shadow-[0_0_44px_rgba(34,211,238,0.10)]" : "border-white/10 bg-white/[0.035]"}`}>
-                    <div className="flex items-center justify-between gap-4 px-4 py-3.5">
-                        <div className="flex min-w-0 flex-1 items-center gap-3">
-                            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-all ${fragment.followCursor ? "border-cyan-300/25 bg-cyan-300/12 text-cyan-200" : "border-white/10 bg-white/[0.045] text-white/55"}`}>
-                                <Icon icon="solar:cursor-bold" width="18" />
-                            </div>
+                <div
+                    className={`rounded-2xl border transition-colors duration-200 ${
+                        fragment.followCursor
+                            ? "border-cyan-400/25 bg-[#0b2226]/70"
+                            : "border-white/10 bg-white/[0.035]"
+                    }`}
+                >
+                    <div className="flex items-center gap-3 px-4 py-3.5">
+                        <div
+                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${
+                                fragment.followCursor
+                                    ? "border-cyan-300/25 bg-cyan-300/10 text-cyan-200"
+                                    : "border-white/10 bg-white/[0.045] text-white/55"
+                            }`}
+                        >
+                            <Icon icon="solar:cursor-bold" width="18" />
+                        </div>
 
-                            <div className="min-w-0 flex-1">
-                                <p className="text-[13px] font-semibold leading-none text-white/90">Seguir cursor</p>
-                                <p className="mt-1.5 line-clamp-2 text-[11px] leading-4 text-white/45">
-                                    Usa el cursor grabado para mover suavemente la cámara durante este zoom.
-                                </p>
-                            </div>
+                        <div className="min-w-0 flex-1 pr-2">
+                            <p className="text-[13px] font-semibold leading-none text-white/90">Seguir cursor</p>
+                            <p className="mt-1.5 max-w-[260px] truncate text-[11px] leading-4 text-white/45">
+                                Usa el cursor grabado para mover suavemente la cámara.
+                            </p>
                         </div>
 
                         <button
@@ -332,10 +342,16 @@ export function ZoomFragmentEditor({
                                 followSmoothing: fragment.followSmoothing ?? 0.62,
                                 followDeadzone: fragment.followDeadzone ?? 7,
                             })}
-                            className={`relative h-8 w-[58px] shrink-0 rounded-full border transition-all duration-300 ${fragment.followCursor ? "border-cyan-200/30 bg-cyan-400 shadow-[0_0_28px_rgba(34,211,238,0.35)]" : "border-white/10 bg-white/14"}`}
+                            className={`relative h-7 w-12 shrink-0 rounded-full border p-1 transition-colors duration-200 ${
+                                fragment.followCursor
+                                    ? "border-cyan-300/30 bg-cyan-400"
+                                    : "border-white/10 bg-white/14"
+                            }`}
                         >
                             <span
-                                className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow-[0_5px_14px_rgba(0,0,0,0.35)] transition-transform duration-300 ${fragment.followCursor ? "translate-x-[28px]" : "translate-x-1"}`}
+                                className={`block h-5 w-5 rounded-full bg-white shadow-[0_5px_14px_rgba(0,0,0,0.35)] transition-transform duration-200 ${
+                                    fragment.followCursor ? "translate-x-5" : "translate-x-0"
+                                }`}
                             />
                         </button>
                     </div>
@@ -379,7 +395,6 @@ export function ZoomFragmentEditor({
                     )}
                 </div>
 
-                
                 <div className="space-y-3 p-3 bg-white/3 border border-white/8 rounded-xl">
                     <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 min-w-0">
