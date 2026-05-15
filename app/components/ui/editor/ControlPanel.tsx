@@ -126,9 +126,10 @@ export function ControlPanel({
     return (
         <div className="relative w-full sm:w-[320px] h-screen bg-[#141417] border-r border-white/10 flex flex-col shrink-0" role="complementary" aria-label="Control panel">
             <header className="flex items-center justify-between h-13 p-2 border-b border-white/10 shrink-0" role="banner">
-                <Link href="/" onClick={() => { window.location.href = "/"; }} className="flex items-center gap-2 group" aria-label="OpenVid home">
-                    <Image src="/svg/logo-openvid.svg" alt="" width={30} height={30} />
-                    <Image src="/svg/openvid.svg" alt="OpenVid" width={70} height={50} />
+                <Link href="/" onClick={() => { window.location.href = "/"; }} className="flex items-center gap-2 group" aria-label="Studio Labs home">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-400/20 bg-cyan-400/8 shadow-[0_0_28px_rgba(34,211,238,0.12)] transition-colors group-hover:border-cyan-300/35 group-hover:bg-cyan-300/12">
+                        <Image src="/svg/logo-labs.svg" alt="Studio Labs" width={32} height={32} className="h-8 w-8 object-contain" priority />
+                    </div>
                 </Link>
 
                 <TooltipAction label={t("header.close")} side="right">
