@@ -220,7 +220,7 @@
           "browserTab": "Brave Tab",
           "window": "Window",
           "fullscreen": "Entire screen",
-          "tabTitle": "openvid - Create shots...",
+          "tabTitle": "Studio Labs - Create shots...",
           "codeTitle": "RecordingSteps.tsx",
           "shareAudio": "Also share system audio",
           "share": "Share",
@@ -231,14 +231,14 @@
         "title": "Hide distractions",
         "description": "When sharing your screen, your browser will automatically show a floating bar notifying that the capture is active. Click <hide>Hide</hide> to make sure it doesn't appear in your final video.",
         "visual": {
-          "barText": "https://openvid.dev is sharing a window.",
+          "barText": "https://studio.laboratorios.digital is sharing a window.",
           "stop": "Stop sharing",
           "hide": "Hide"
         }
       },
       "step3": {
         "title": "Get ready for action",
-        "description": "No rush. Once you approve the permissions in step 1, we will start a <countdown>3-second</countdown> countdown. You will see the indicator in the browser tab so you know exactly when to start speaking or moving the mouse.",
+        "description": "No rush. Once you approve the permissions in step 1, we will start a <countdown>5-second countdown</countdown>. You will see the indicator in the browser tab so you know exactly when to start speaking or moving the mouse.",
         "visual": {
           "title": "Switch tabs!",
           "subtitle": "The recording will start on the screen you selected."
