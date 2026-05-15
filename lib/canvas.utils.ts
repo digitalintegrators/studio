@@ -223,9 +223,9 @@ export function calculateSmoothZoom(
     frameTime: number,
     zoomFragments: ZoomFragment[]
 ): ZoomStateCanvasExport {
-    const DEFAULT_STATE: ZoomStateCanvasExport = { 
-        scale: 1, 
-        focusX: 50, 
+    const DEFAULT_STATE: ZoomStateCanvasExport = {
+        scale: 1,
+        focusX: 50,
         focusY: 50,
         rotateX: 0,
         rotateY: 0,
@@ -237,91 +237,65 @@ export function calculateSmoothZoom(
     const sortedFragments = [...zoomFragments].sort((a, b) => a.startTime - b.startTime);
 
     const activeFragment = sortedFragments.find(
-        f => frameTime >= f.startTime && frameTime <= f.endTime
+        (fragment) => frameTime >= fragment.startTime && frameTime <= fragment.endTime
     );
 
-    // Find previous fragment for exit transition (only used for simple zoom)
+    if (activeFragment) {
+        const phaseState = calculateZoomPhaseState(activeFragment, frameTime, true);
+
+        return {
+            scale: phaseState.scale,
+            focusX: phaseState.focusX,
+            focusY: phaseState.focusY,
+            rotateX: phaseState.rotateX,
+            rotateY: phaseState.rotateY,
+            perspective: phaseState.perspective,
+        };
+    }
+
+    // Natural release after a fragment only when there is a small gap before the next one.
+    // This prevents a hard cut if the playhead lands just after the fragment end.
     const previousFragment = sortedFragments
-        .filter(f => f.endTime < frameTime)
+        .filter((fragment) => fragment.endTime < frameTime)
         .sort((a, b) => b.endTime - a.endTime)[0];
 
-    // Helper to check if fragment uses advanced features
-    const isAdvancedZoom = (f: ZoomFragment) => f.enable3D || f.movementEnabled;
+    if (!previousFragment) return DEFAULT_STATE;
 
-    if (activeFragment) {
-        // Check if this fragment uses 3D or movement
-        if (isAdvancedZoom(activeFragment)) {
-            // ADVANCED ZOOM: Use 3-phase system (entry, hold, exit all within fragment)
-            const phaseState = calculateZoomPhaseState(activeFragment, frameTime, true);
-            return {
-                scale: phaseState.scale,
-                focusX: phaseState.focusX,
-                focusY: phaseState.focusY,
-                rotateX: phaseState.rotateX,
-                rotateY: phaseState.rotateY,
-                perspective: phaseState.perspective,
-            };
-        } else {
-            // SIMPLE ZOOM: Entry transition inside fragment, no exit inside (exit happens after)
-            const transitionMs = speedToTransitionMs(activeFragment.speed);
-            const transitionSec = transitionMs / 1000;
-            const targetScale = zoomLevelToFactor(activeFragment.zoomLevel);
-            const timeIntoFragment = frameTime - activeFragment.startTime;
+    const nextFragment = sortedFragments.find(
+        (fragment) => fragment.startTime > previousFragment.endTime
+    );
 
-            let scale: number;
-            if (timeIntoFragment < transitionSec) {
-                // Entry: animate from 1 to target
-                const progress = Math.min(1, timeIntoFragment / transitionSec);
-                const easedProgress = easeOutQuart(progress);
-                scale = 1 + (targetScale - 1) * easedProgress;
-            } else {
-                // Hold: maintain target scale (no exit inside fragment for simple zoom)
-                scale = targetScale;
-            }
+    const releaseSeconds = Math.min(
+        speedToTransitionMs(previousFragment.speed) / 1000,
+        Math.max(0.18, (previousFragment.endTime - previousFragment.startTime) * 0.28)
+    );
 
-            return {
-                scale,
-                focusX: activeFragment.focusX,
-                focusY: activeFragment.focusY,
-                rotateX: 0,
-                rotateY: 0,
-                perspective: 0,
-            };
-        }
+    const timeSinceEnd = frameTime - previousFragment.endTime;
+
+    if (timeSinceEnd <= 0 || timeSinceEnd > releaseSeconds) return DEFAULT_STATE;
+
+    if (nextFragment && frameTime >= nextFragment.startTime - 0.02) {
+        return DEFAULT_STATE;
     }
 
-    // Not inside any fragment - check exit transition from previous fragment
-    if (previousFragment) {
-        if (isAdvancedZoom(previousFragment)) {
-            // ADVANCED ZOOM: Exit already happened inside fragment, return default
-            return DEFAULT_STATE;
-        } else {
-            // SIMPLE ZOOM: Exit happens AFTER fragment ends
-            const exitTransitionMs = speedToTransitionMs(previousFragment.speed);
-            const exitTransitionSec = exitTransitionMs / 1000;
-            const timeSinceEnd = frameTime - previousFragment.endTime;
+    const progress = Math.max(0, Math.min(1, timeSinceEnd / releaseSeconds));
+    const easedProgress = easeOutQuart(progress);
+    const targetScale = zoomLevelToFactor(previousFragment.zoomLevel);
+    const scale = targetScale - (targetScale - 1) * easedProgress;
 
-            if (timeSinceEnd < exitTransitionSec) {
-                const progress = Math.min(1, timeSinceEnd / exitTransitionSec);
-                const easedProgress = easeOutQuart(progress);
-                const targetScale = zoomLevelToFactor(previousFragment.zoomLevel);
-                const scale = targetScale - (targetScale - 1) * easedProgress;
-
-                return {
-                    scale,
-                    focusX: previousFragment.focusX,
-                    focusY: previousFragment.focusY,
-                    rotateX: 0,
-                    rotateY: 0,
-                    perspective: 0,
-                };
-            }
-        }
-    }
-
-    return DEFAULT_STATE;
+    return {
+        scale: scale < 1.002 ? 1 : scale,
+        focusX: previousFragment.movementEnabled
+            ? previousFragment.movementEndX ?? previousFragment.focusX
+            : previousFragment.focusX,
+        focusY: previousFragment.movementEnabled
+            ? previousFragment.movementEndY ?? previousFragment.focusY
+            : previousFragment.focusY,
+        rotateX: 0,
+        rotateY: 0,
+        perspective: 0,
+    };
 }
-
 
 // Funciones para determinar esquina más cercana y estilos de las esquinas para rotar elementos
 export type Corner = "top-left" | "top-right" | "bottom-right" | "bottom-left";
