@@ -28,7 +28,7 @@ export const MOCKUPS: Mockup[] = [
         defaultConfig: {
             darkMode: false,
             frameColor: "#f6f6f6",
-            url: "https://openvid.dev",
+            url: "https://studio.laboratorios.digital",
             headerScale: 60,
             cornerRadius: 12,
         },
@@ -51,7 +51,7 @@ export const MOCKUPS: Mockup[] = [
         defaultConfig: {
             darkMode: false,
             frameColor: "#f6f6f6",
-            url: "https://openvid.dev",
+            url: "https://studio.laboratorios.digital",
             headerScale: 60,
             cornerRadius: 12,
         },
@@ -89,7 +89,7 @@ export const MOCKUPS: Mockup[] = [
         defaultConfig: {
             darkMode: false,
             frameColor: "#f6f6f6",
-            url: "https://openvid.dev",
+            url: "https://studio.laboratorios.digital",
             headerScale: 60,
             cornerRadius: 12,
         },
@@ -112,7 +112,7 @@ export const MOCKUPS: Mockup[] = [
         defaultConfig: {
             darkMode: false,
             frameColor: "#f6f6f6",
-            url: "https://openvid.dev",
+            url: "https://studio.laboratorios.digital",
             headerScale: 60,
             cornerRadius: 12,
         },
@@ -152,7 +152,7 @@ export const MOCKUPS: Mockup[] = [
         defaultConfig: {
             darkMode: false,
             frameColor: "#f6f6f6",
-            url: "https://openvid.dev",
+            url: "https://studio.laboratorios.digital",
             headerScale: 60,
             cornerRadius: 12,
         },
@@ -175,7 +175,7 @@ export const MOCKUPS: Mockup[] = [
         defaultConfig: {
             darkMode: false,
             frameColor: "#f6f6f6",
-            url: "https://openvid.dev",
+            url: "https://studio.laboratorios.digital",
             headerScale: 60,
             cornerRadius: 12,
         },
@@ -197,7 +197,7 @@ export const MOCKUPS: Mockup[] = [
         },
         defaultConfig: {
             darkMode: false,
-            url: "https://openvid.dev",
+            url: "https://studio.laboratorios.digital",
             headerScale: 60,
             cornerRadius: 12,
         },
@@ -220,7 +220,7 @@ export const MOCKUPS: Mockup[] = [
         defaultConfig: {
             darkMode: false,
             frameColor: "#f6f6f6",
-            url: "https://openvid.dev",
+            url: "https://studio.laboratorios.digital",
             headerScale: 60,
             cornerRadius: 12,
         },
@@ -243,7 +243,7 @@ export const MOCKUPS: Mockup[] = [
         defaultConfig: {
             darkMode: false,
             frameColor: "#f6f6f6",
-            url: "https://openvid.dev",
+            url: "https://studio.laboratorios.digital",
             headerScale: 60,
             cornerRadius: 12,
         },
@@ -384,7 +384,7 @@ export const MOCKUPS: Mockup[] = [
         defaultConfig: {
             darkMode: true,
             frameColor: "#1e1e1e",
-            url: "https://openvid.dev",
+            url: "https://studio.laboratorios.digital",
             headerScale: 60,
             cornerRadius: 8,
         },
@@ -407,7 +407,7 @@ export const MOCKUPS: Mockup[] = [
         defaultConfig: {
             darkMode: true,
             frameColor: "#1e1e1e",
-            url: "https://openvid.dev",
+            url: "https://studio.laboratorios.digital",
             headerScale: 60,
             cornerRadius: 8,
         },
@@ -430,7 +430,7 @@ export const MOCKUPS: Mockup[] = [
         defaultConfig: {
             darkMode: true,
             frameColor: "#1e1e1e",
-            url: "https://openvid.dev",
+            url: "https://studio.laboratorios.digital",
             headerScale: 60,
             cornerRadius: 8,
         },
