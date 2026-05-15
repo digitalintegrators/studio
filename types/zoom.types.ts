@@ -1,5 +1,7 @@
 import { VideoThumbnail } from "./editor.types";
 
+export type ZoomCinematicMode = "smooth" | "push" | "dramatic" | "subtle";
+
 export interface ZoomFragment {
     id: string;
     startTime: number;
@@ -20,7 +22,7 @@ export interface ZoomFragment {
     perspective3DAngleX?: number;
     perspective3DAngleY?: number;
 
-    cinematicMode?: "smooth" | "push" | "dramatic" | "subtle";
+    cinematicMode?: ZoomCinematicMode;
 }
 
 export interface ZoomTimelineState {
@@ -49,6 +51,7 @@ export interface ZoomPhaseState {
     rotateX: number;
     rotateY: number;
     perspective: number;
+    velocity: number;
 }
 
 export interface ZoomStateCanvas {
@@ -57,46 +60,171 @@ export interface ZoomStateCanvas {
     focusY: number;
 }
 
+export type ZoomModeConfig = {
+    label: string;
+    description: string;
+    entryRatio: number;
+    exitRatio: number;
+    motionEase: (t: number) => number;
+    entryEase: (t: number) => number;
+    exitEase: (t: number) => number;
+    overshoot: number;
+    damping: number;
+};
+
 const DEFAULT_ZOOM_LEVEL = 2.2;
 const DEFAULT_ZOOM_SPEED = 6;
 
-export const ZOOM_EASING = "cubic-bezier(0.16, 1, 0.3, 1)";
+export const ZOOM_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
+export const ZOOM_RELEASE_EASING = "cubic-bezier(0.16, 1, 0.3, 1)";
+export const ZOOM_LINEAR_MOVEMENT_EASING = "cubic-bezier(0.33, 1, 0.68, 1)";
+
+export function clamp(value: number, min = 0, max = 1): number {
+    return Math.max(min, Math.min(max, value));
+}
+
+export function lerp(from: number, to: number, progress: number): number {
+    return from + (to - from) * progress;
+}
 
 export function easeOutQuart(t: number): number {
-    return 1 - Math.pow(1 - t, 4);
+    const x = clamp(t);
+    return 1 - Math.pow(1 - x, 4);
 }
 
 export function easeInOutQuart(t: number): number {
-    return t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2;
+    const x = clamp(t);
+    return x < 0.5 ? 8 * x * x * x * x : 1 - Math.pow(-2 * x + 2, 4) / 2;
 }
 
 export function easeOutExpo(t: number): number {
-    return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+    const x = clamp(t);
+    return x === 1 ? 1 : 1 - Math.pow(2, -10 * x);
 }
 
 export function easeInOutCinematic(t: number): number {
-    if (t <= 0) return 0;
-    if (t >= 1) return 1;
+    const x = clamp(t);
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
 
-    return t < 0.5
-        ? Math.pow(2, 20 * t - 10) / 2
-        : (2 - Math.pow(2, -20 * t + 10)) / 2;
+    return x < 0.5
+        ? Math.pow(2, 20 * x - 10) / 2
+        : (2 - Math.pow(2, -20 * x + 10)) / 2;
+}
+
+export function easeInOutSine(t: number): number {
+    const x = clamp(t);
+    return -(Math.cos(Math.PI * x) - 1) / 2;
+}
+
+export function smootherStep(t: number): number {
+    const x = clamp(t);
+    return x * x * x * (x * (x * 6 - 15) + 10);
+}
+
+export function springOut(t: number): number {
+    const x = clamp(t);
+    if (x === 0 || x === 1) return x;
+    return 1 - Math.pow(2, -9 * x) * Math.cos(x * Math.PI * 2.25);
+}
+
+export function getZoomModeConfig(mode: ZoomCinematicMode = "smooth"): ZoomModeConfig {
+    const configs: Record<ZoomCinematicMode, ZoomModeConfig> = {
+        smooth: {
+            label: "Smooth",
+            description: "Balanced cinematic camera move",
+            entryRatio: 0.28,
+            exitRatio: 0.3,
+            motionEase: smootherStep,
+            entryEase: easeOutExpo,
+            exitEase: easeInOutSine,
+            overshoot: 0,
+            damping: 0.92,
+        },
+        push: {
+            label: "Push",
+            description: "Fast push-in with a soft release",
+            entryRatio: 0.22,
+            exitRatio: 0.34,
+            motionEase: easeInOutCinematic,
+            entryEase: springOut,
+            exitEase: easeOutQuart,
+            overshoot: 0.025,
+            damping: 0.88,
+        },
+        dramatic: {
+            label: "Dramatic",
+            description: "Longer in/out and stronger camera presence",
+            entryRatio: 0.34,
+            exitRatio: 0.38,
+            motionEase: easeInOutCinematic,
+            entryEase: springOut,
+            exitEase: easeInOutCinematic,
+            overshoot: 0.045,
+            damping: 0.82,
+        },
+        subtle: {
+            label: "Subtle",
+            description: "Gentle focus without aggressive movement",
+            entryRatio: 0.2,
+            exitRatio: 0.24,
+            motionEase: easeInOutSine,
+            entryEase: easeOutQuart,
+            exitEase: easeInOutSine,
+            overshoot: 0,
+            damping: 0.96,
+        },
+    };
+
+    return configs[mode];
 }
 
 export function zoomLevelToFactor(level: number): number {
-    const minZoom = 1.05;
-    const maxZoom = 4.5;
-    const normalized = Math.max(0, Math.min(1, (level - 1) / 9));
+    const minZoom = 1.04;
+    const maxZoom = 4.8;
+    const normalized = clamp((level - 1) / 9);
 
-    return minZoom + (maxZoom - minZoom) * normalized;
+    // Slight curve so low zoom values are easier to fine tune.
+    const curved = Math.pow(normalized, 0.88);
+    return minZoom + (maxZoom - minZoom) * curved;
 }
 
 export function speedToTransitionMs(speed: number): number {
-    const minMs = 180;
-    const maxMs = 1800;
-    const normalized = Math.max(0, Math.min(1, (speed - 1) / 9));
+    const minMs = 220;
+    const maxMs = 1900;
+    const normalized = clamp((speed - 1) / 9);
 
     return Math.round(maxMs - (maxMs - minMs) * normalized);
+}
+
+function calculateTransitionWindows(fragment: ZoomFragment) {
+    const totalDuration = Math.max(0.01, fragment.endTime - fragment.startTime);
+    const mode = getZoomModeConfig(fragment.cinematicMode ?? "smooth");
+    const speedSeconds = speedToTransitionMs(fragment.speed) / 1000;
+
+    const entryDuration = Math.min(
+        speedSeconds * (0.72 + mode.entryRatio),
+        totalDuration * Math.min(0.46, mode.entryRatio + 0.08)
+    );
+
+    const exitDuration = Math.min(
+        speedSeconds * (0.72 + mode.exitRatio),
+        totalDuration * Math.min(0.48, mode.exitRatio + 0.08)
+    );
+
+    const entryEndTime = fragment.startTime + entryDuration;
+    const exitStartTime = Math.max(entryEndTime, fragment.endTime - exitDuration);
+    const holdDuration = Math.max(0, exitStartTime - entryEndTime);
+
+    return {
+        totalDuration,
+        mode,
+        entryDuration,
+        exitDuration,
+        entryEndTime,
+        exitStartTime,
+        holdDuration,
+    };
 }
 
 export function calculateZoomPhaseState(
@@ -104,62 +232,47 @@ export function calculateZoomPhaseState(
     currentTime: number,
     forExport: boolean = false
 ): ZoomPhaseState {
-    const totalDuration = Math.max(0.01, fragment.endTime - fragment.startTime);
-    const elapsed = currentTime - fragment.startTime;
-    const normalizedTime = Math.max(0, Math.min(1, elapsed / totalDuration));
+    const {
+        mode,
+        entryDuration,
+        exitDuration,
+        entryEndTime,
+        exitStartTime,
+        holdDuration,
+    } = calculateTransitionWindows(fragment);
 
-    const targetScale = zoomLevelToFactor(fragment.zoomLevel);
-    const transitionSeconds = Math.min(
-        speedToTransitionMs(fragment.speed) / 1000,
-        totalDuration / 2
-    );
-
-    const entryEndTime = fragment.startTime + transitionSeconds;
-    const exitStartTime = fragment.endTime - transitionSeconds;
-    const holdDuration = Math.max(0, exitStartTime - entryEndTime);
+    const targetScaleBase = zoomLevelToFactor(fragment.zoomLevel);
+    const targetScale = fragment.cinematicMode === "subtle"
+        ? 1 + (targetScaleBase - 1) * 0.86
+        : targetScaleBase;
 
     const movementEndX = fragment.movementEndX ?? fragment.focusX;
     const movementEndY = fragment.movementEndY ?? fragment.focusY;
 
     let phase: "entry" | "hold" | "exit" = "hold";
-    let progress = normalizedTime;
-    let scale = forExport ? 1 : targetScale;
+    let progress = 1;
+    let easedScaleProgress = 1;
+    let scale = targetScale;
     let focusX = fragment.focusX;
     let focusY = fragment.focusY;
     let rotateX = 0;
     let rotateY = 0;
     let perspective = 0;
+    let velocity = 0;
 
-    const cinematicMode = fragment.cinematicMode ?? "smooth";
-
-    const entryEase =
-        cinematicMode === "dramatic"
-            ? easeOutExpo
-            : cinematicMode === "push"
-              ? easeInOutCinematic
-              : easeOutQuart;
-
-    const exitEase =
-        cinematicMode === "dramatic"
-            ? easeInOutCinematic
-            : easeOutQuart;
-
-    if (currentTime < entryEndTime && transitionSeconds > 0) {
+    if (currentTime < entryEndTime && entryDuration > 0) {
         phase = "entry";
-
-        const rawProgress = (currentTime - fragment.startTime) / transitionSeconds;
-        progress = Math.max(0, Math.min(1, rawProgress));
-
-        const easedProgress = entryEase(progress);
-        scale = 1 + (targetScale - 1) * easedProgress;
-    } else if (currentTime >= exitStartTime && transitionSeconds > 0) {
+        progress = clamp((currentTime - fragment.startTime) / entryDuration);
+        easedScaleProgress = mode.entryEase(progress);
+        const overshoot = mode.overshoot * Math.sin(progress * Math.PI);
+        scale = 1 + (targetScale - 1) * (easedScaleProgress + overshoot);
+        velocity = 1 - progress;
+    } else if (currentTime >= exitStartTime && exitDuration > 0) {
         phase = "exit";
-
-        const rawProgress = (currentTime - exitStartTime) / transitionSeconds;
-        progress = Math.max(0, Math.min(1, rawProgress));
-
-        const easedProgress = exitEase(progress);
-        scale = targetScale - (targetScale - 1) * easedProgress;
+        progress = clamp((currentTime - exitStartTime) / exitDuration);
+        const releaseProgress = mode.exitEase(progress);
+        scale = targetScale - (targetScale - 1) * releaseProgress;
+        velocity = progress;
 
         if (fragment.movementEnabled) {
             focusX = movementEndX;
@@ -167,34 +280,25 @@ export function calculateZoomPhaseState(
         }
     } else {
         phase = "hold";
+        progress = holdDuration > 0 ? clamp((currentTime - entryEndTime) / holdDuration) : 1;
         scale = targetScale;
 
         if (fragment.movementEnabled && holdDuration > 0) {
             const movementStartOffset = fragment.movementStartOffset ?? 0;
             const movementEndOffset = fragment.movementEndOffset ?? holdDuration;
 
-            const movementStartTime =
-                entryEndTime + Math.max(0, Math.min(movementStartOffset, holdDuration));
+            const movementStartTime = entryEndTime + clamp(movementStartOffset / holdDuration) * holdDuration;
+            const movementEndTime = entryEndTime + clamp(movementEndOffset / holdDuration) * holdDuration;
+            const movementDuration = Math.max(0.01, movementEndTime - movementStartTime);
 
-            const movementEndTime =
-                entryEndTime +
-                Math.max(movementStartOffset, Math.min(movementEndOffset, holdDuration));
+            if (currentTime >= movementStartTime && currentTime <= movementEndTime) {
+                const movementProgress = clamp((currentTime - movementStartTime) / movementDuration);
+                const easedMovement = mode.motionEase(movementProgress);
 
-            const movementDuration = movementEndTime - movementStartTime;
-
-            if (
-                currentTime >= movementStartTime &&
-                currentTime <= movementEndTime &&
-                movementDuration > 0
-            ) {
-                const movementProgress =
-                    (currentTime - movementStartTime) / movementDuration;
-
-                const easedProgress = easeInOutQuart(Math.min(1, movementProgress));
-
-                focusX = fragment.focusX + (movementEndX - fragment.focusX) * easedProgress;
-                focusY = fragment.focusY + (movementEndY - fragment.focusY) * easedProgress;
+                focusX = lerp(fragment.focusX, movementEndX, easedMovement);
+                focusY = lerp(fragment.focusY, movementEndY, easedMovement);
                 progress = movementProgress;
+                velocity = Math.sin(movementProgress * Math.PI) * mode.damping;
             } else if (currentTime > movementEndTime) {
                 focusX = movementEndX;
                 focusY = movementEndY;
@@ -204,29 +308,22 @@ export function calculateZoomPhaseState(
     }
 
     if (fragment.enable3D) {
-        const intensity = Math.max(
-            0,
-            Math.min(1, (fragment.perspective3DIntensity ?? 45) / 100)
-        );
-
+        const intensity = clamp((fragment.perspective3DIntensity ?? 45) / 100);
         const baseAngleX = fragment.perspective3DAngleX ?? 0;
         const baseAngleY = fragment.perspective3DAngleY ?? 0;
 
         let effect3DOpacity = 1;
+        if (phase === "entry") effect3DOpacity = easeOutQuart(progress);
+        if (phase === "exit") effect3DOpacity = 1 - easeOutQuart(progress);
 
-        if (phase === "entry") {
-            effect3DOpacity = easeOutQuart(progress);
-        } else if (phase === "exit") {
-            effect3DOpacity = 1 - easeOutQuart(progress);
-        }
-
-        perspective = 520;
-
-        const maxRotation = 22 * intensity;
-
+        const maxRotation = (fragment.cinematicMode === "dramatic" ? 24 : 18) * intensity;
+        perspective = 560 + 160 * intensity;
         rotateX = (baseAngleX / 45) * maxRotation * effect3DOpacity;
         rotateY = (baseAngleY / 45) * maxRotation * effect3DOpacity;
     }
+
+    // Avoid tiny floating point scale offsets at rest in export and preview.
+    if ((forExport || phase === "exit") && scale < 1.002) scale = 1;
 
     return {
         phase,
@@ -237,14 +334,13 @@ export function calculateZoomPhaseState(
         rotateX,
         rotateY,
         perspective,
+        velocity,
     };
 }
 
 export function calculateHoldDuration(fragment: ZoomFragment): number {
-    const totalDuration = fragment.endTime - fragment.startTime;
-    const transitionSeconds = speedToTransitionMs(fragment.speed) / 1000;
-
-    return Math.max(0, totalDuration - 2 * transitionSeconds);
+    const { holdDuration } = calculateTransitionWindows(fragment);
+    return holdDuration;
 }
 
 export function createZoomFragment(
@@ -277,7 +373,7 @@ export function generateDefaultZoomFragments(
 ): ZoomFragment[] {
     if (videoDuration <= 0) return [];
 
-    const fragmentDuration = Math.min(2.4, Math.max(1.4, videoDuration * 0.18));
+    const fragmentDuration = Math.min(2.8, Math.max(1.6, videoDuration * 0.18));
     const fragments: ZoomFragment[] = [];
 
     if (videoDuration >= 4) {
@@ -288,8 +384,8 @@ export function generateDefaultZoomFragments(
                 start1,
                 Math.min(start1 + fragmentDuration, videoDuration)
             ),
-            zoomLevel: 2.1,
-            speed: 6,
+            zoomLevel: 2.15,
+            speed: 6.2,
             focusX: 50,
             focusY: 45,
             movementEnabled: true,
@@ -307,8 +403,8 @@ export function generateDefaultZoomFragments(
                 start2,
                 Math.min(start2 + fragmentDuration, videoDuration)
             ),
-            zoomLevel: 2.6,
-            speed: 7,
+            zoomLevel: 2.65,
+            speed: 7.2,
             focusX: 45,
             focusY: 50,
             movementEnabled: true,
