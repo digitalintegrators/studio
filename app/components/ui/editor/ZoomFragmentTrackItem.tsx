@@ -2,29 +2,12 @@
 
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { motion, useMotionValue } from "framer-motion";
+import { Icon } from "@iconify/react";
 import type { ZoomFragment } from "@/types/zoom.types";
-import { zoomLevelToFactor } from "@/types/zoom.types";
+import { getZoomModeConfig, zoomLevelToFactor } from "@/types/zoom.types";
 
-// Minimum fragment duration in seconds
 const MIN_FRAGMENT_DURATION = 0.5;
-const SNAP_THRESHOLD_SECONDS = 0.12;
-
-function snapTime(value: number, targets: number[], disabled: boolean): number {
-    if (disabled) return value;
-
-    for (const target of targets) {
-        if (Math.abs(value - target) <= SNAP_THRESHOLD_SECONDS) {
-            return target;
-        }
-    }
-
-    return value;
-}
-
-function isShiftEvent(event: MouseEvent | TouchEvent | PointerEvent): boolean {
-    return "shiftKey" in event && Boolean(event.shiftKey);
-}
-
+const SNAP_THRESHOLD_PX = 8;
 
 interface ZoomFragmentTrackItemProps {
     fragment: ZoomFragment;
@@ -32,12 +15,22 @@ interface ZoomFragmentTrackItemProps {
     contentWidth: number;
     videoDuration: number;
     otherFragments: ZoomFragment[];
-    snapTimes?: number[];
     onSelect: () => void;
     onUpdate: (updates: Partial<ZoomFragment>) => void;
     onDragStateChange?: (isDragging: boolean) => void;
     onMouseEnter?: () => void;
     onMouseLeave?: () => void;
+}
+
+function clamp(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
+}
+
+function formatDuration(seconds: number): string {
+    if (seconds < 10) return `${seconds.toFixed(1)}s`;
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return mins > 0 ? `${mins}:${secs.toString().padStart(2, "0")}` : `${secs}s`;
 }
 
 export function ZoomFragmentTrackItem({
@@ -46,7 +39,6 @@ export function ZoomFragmentTrackItem({
     contentWidth,
     videoDuration,
     otherFragments,
-    snapTimes = [],
     onSelect,
     onUpdate,
     onDragStateChange,
@@ -54,22 +46,37 @@ export function ZoomFragmentTrackItem({
     onMouseLeave,
 }: ZoomFragmentTrackItemProps) {
     const [isDragging, setIsDragging] = useState(false);
-    const [isResizing, setIsResizing] = useState<'start' | 'end' | null>(null);
+    const [isResizing, setIsResizing] = useState<"start" | "end" | null>(null);
+    const [snapX, setSnapX] = useState<number | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
     const fragmentX = useMotionValue(0);
     const fragmentWidth = useMotionValue(0);
 
-    const timeToPixels = useCallback((time: number) => {
-        return (time / videoDuration) * contentWidth;
-    }, [videoDuration, contentWidth]);
+    const duration = fragment.endTime - fragment.startTime;
+    const isInteracting = isDragging || isResizing !== null;
+    const mode = fragment.cinematicMode ?? "smooth";
+    const modeConfig = getZoomModeConfig(mode);
+    const zoomFactor = zoomLevelToFactor(fragment.zoomLevel);
 
-    const pixelsToTime = useCallback((pixels: number) => {
-        return (pixels / contentWidth) * videoDuration;
-    }, [contentWidth, videoDuration]);
+    const timeToPixels = useCallback(
+        (time: number) => {
+            if (videoDuration <= 0) return 0;
+            return (time / videoDuration) * contentWidth;
+        },
+        [videoDuration, contentWidth]
+    );
+
+    const pixelsToTime = useCallback(
+        (pixels: number) => {
+            if (contentWidth <= 0) return 0;
+            return (pixels / contentWidth) * videoDuration;
+        },
+        [contentWidth, videoDuration]
+    );
 
     const initialLeft = timeToPixels(fragment.startTime);
-    const initialWidth = timeToPixels(fragment.endTime - fragment.startTime);
+    const initialWidth = timeToPixels(duration);
 
     useEffect(() => {
         if (!isDragging && !isResizing) {
@@ -80,7 +87,6 @@ export function ZoomFragmentTrackItem({
 
     const boundaries = useMemo(() => {
         const sorted = [...otherFragments].sort((a, b) => a.startTime - b.startTime);
-
         let minStart = 0;
         let maxEnd = videoDuration;
 
@@ -97,31 +103,69 @@ export function ZoomFragmentTrackItem({
         return { minStart, maxEnd };
     }, [otherFragments, fragment.startTime, fragment.endTime, videoDuration]);
 
-    const snapTargets = useMemo(() => {
-        const targets = [0, videoDuration, ...snapTimes];
+    const snapPoints = useMemo(() => {
+        const points = [0, videoDuration];
+        for (const item of otherFragments) {
+            points.push(item.startTime, item.endTime);
+        }
+        return points;
+    }, [otherFragments, videoDuration]);
 
-        otherFragments.forEach((item) => {
-            targets.push(item.startTime, item.endTime);
-        });
+    const applySnapping = useCallback(
+        (x: number, fragmentDuration: number, disabled: boolean) => {
+            if (disabled || !snapPoints.length) {
+                setSnapX(null);
+                return x;
+            }
 
-        return [...new Set(targets.filter((target) => Number.isFinite(target)))].sort((a, b) => a - b);
-    }, [otherFragments, snapTimes, videoDuration]);
+            let nextX = x;
+            let bestDistance = Infinity;
+            let bestSnapPx: number | null = null;
 
-    const handleDrag = useCallback((e: MouseEvent | TouchEvent | PointerEvent, info: { delta: { x: number } }) => {
-        if (contentWidth === 0 || videoDuration === 0) return;
+            const startTime = pixelsToTime(x);
+            const endTime = startTime + fragmentDuration;
 
-        const currentX = fragmentX.get();
-        const duration = fragment.endTime - fragment.startTime;
+            for (const point of snapPoints) {
+                const startDistance = Math.abs(timeToPixels(point) - x);
+                const endDistance = Math.abs(timeToPixels(point) - timeToPixels(endTime));
 
-        let newX = currentX + info.delta.x;
+                if (startDistance < bestDistance && startDistance <= SNAP_THRESHOLD_PX) {
+                    bestDistance = startDistance;
+                    nextX = timeToPixels(point);
+                    bestSnapPx = timeToPixels(point);
+                }
 
-        const minX = timeToPixels(boundaries.minStart);
-        const maxX = timeToPixels(boundaries.maxEnd - duration);
-        newX = Math.max(minX, Math.min(maxX, newX));
+                if (endDistance < bestDistance && endDistance <= SNAP_THRESHOLD_PX) {
+                    bestDistance = endDistance;
+                    nextX = timeToPixels(point - fragmentDuration);
+                    bestSnapPx = timeToPixels(point);
+                }
+            }
 
-        const snappedStart = snapTime(pixelsToTime(newX), snapTargets, isShiftEvent(e));
-        fragmentX.set(timeToPixels(snappedStart));
-    }, [contentWidth, videoDuration, fragmentX, fragment, boundaries, timeToPixels, pixelsToTime, snapTargets]);
+            setSnapX(bestSnapPx);
+            return nextX;
+        },
+        [pixelsToTime, snapPoints, timeToPixels]
+    );
+
+    const handleDrag = useCallback(
+        (event: MouseEvent | TouchEvent | PointerEvent, info: { delta: { x: number } }) => {
+            if (contentWidth === 0 || videoDuration === 0) return;
+
+            const pointerEvent = event as PointerEvent;
+            const disableSnap = pointerEvent.altKey;
+            const currentX = fragmentX.get();
+            let newX = currentX + info.delta.x;
+
+            const minX = timeToPixels(boundaries.minStart);
+            const maxX = timeToPixels(boundaries.maxEnd - duration);
+
+            newX = clamp(newX, minX, maxX);
+            newX = clamp(applySnapping(newX, duration, disableSnap), minX, maxX);
+            fragmentX.set(newX);
+        },
+        [contentWidth, videoDuration, fragmentX, timeToPixels, boundaries, duration, applySnapping]
+    );
 
     const handleDragStart = useCallback(() => {
         setIsDragging(true);
@@ -130,185 +174,238 @@ export function ZoomFragmentTrackItem({
 
     const handleDragEnd = useCallback(() => {
         setIsDragging(false);
+        setSnapX(null);
         onDragStateChange?.(false);
 
-        const newStartTime = pixelsToTime(fragmentX.get());
-        const duration = fragment.endTime - fragment.startTime;
+        const newStartTime = clamp(pixelsToTime(fragmentX.get()), 0, videoDuration);
 
         onUpdate({
-            startTime: Math.max(0, newStartTime),
-            endTime: Math.min(videoDuration, newStartTime + duration),
+            startTime: newStartTime,
+            endTime: clamp(newStartTime + duration, 0, videoDuration),
         });
-    }, [fragmentX, pixelsToTime, fragment, videoDuration, onUpdate, onDragStateChange]);
+    }, [fragmentX, pixelsToTime, duration, videoDuration, onUpdate, onDragStateChange]);
 
-    const handleResizeStartDrag = useCallback((e: MouseEvent | TouchEvent | PointerEvent, info: { delta: { x: number } }) => {
-        if (contentWidth === 0 || videoDuration === 0) return;
+    const handleResizeStartDrag = useCallback(
+        (event: MouseEvent | TouchEvent | PointerEvent, info: { delta: { x: number } }) => {
+            if (contentWidth === 0 || videoDuration === 0) return;
 
-        const currentX = fragmentX.get();
-        const currentWidth = fragmentWidth.get();
+            const pointerEvent = event as PointerEvent;
+            const currentX = fragmentX.get();
+            const currentWidth = fragmentWidth.get();
+            const minWidth = timeToPixels(MIN_FRAGMENT_DURATION);
+            const minX = timeToPixels(boundaries.minStart);
 
-        let newX = currentX + info.delta.x;
-        let newWidth = currentWidth - info.delta.x;
+            let newX = currentX + info.delta.x;
+            let newWidth = currentWidth - info.delta.x;
 
-        const minWidth = timeToPixels(MIN_FRAGMENT_DURATION);
-        if (newWidth < minWidth) {
-            newWidth = minWidth;
-            newX = currentX + currentWidth - minWidth;
-        }
+            if (newWidth < minWidth) {
+                newWidth = minWidth;
+                newX = currentX + currentWidth - minWidth;
+            }
 
-        const minX = timeToPixels(boundaries.minStart);
-        if (newX < minX) {
-            const diff = minX - newX;
-            newX = minX;
-            newWidth = currentWidth - diff;
-        }
+            newX = Math.max(minX, newX);
 
-        const currentEnd = pixelsToTime(currentX + currentWidth);
-        const snappedStart = Math.max(boundaries.minStart, Math.min(currentEnd - MIN_FRAGMENT_DURATION, snapTime(pixelsToTime(newX), snapTargets, isShiftEvent(e))));
-        fragmentX.set(timeToPixels(snappedStart));
-        fragmentWidth.set(timeToPixels(currentEnd - snappedStart));
-    }, [contentWidth, videoDuration, fragmentX, fragmentWidth, boundaries, timeToPixels, pixelsToTime, snapTargets]);
+            const snappedX = applySnapping(newX, pixelsToTime(newWidth), pointerEvent.altKey);
+            if (snappedX !== newX) {
+                newWidth += newX - snappedX;
+                newX = snappedX;
+            }
 
-    const handleResizeEndDrag = useCallback((e: MouseEvent | TouchEvent | PointerEvent, info: { delta: { x: number } }) => {
-        if (contentWidth === 0 || videoDuration === 0) return;
+            fragmentX.set(newX);
+            fragmentWidth.set(Math.max(minWidth, newWidth));
+        },
+        [contentWidth, videoDuration, fragmentX, fragmentWidth, boundaries, timeToPixels, pixelsToTime, applySnapping]
+    );
 
-        const currentWidth = fragmentWidth.get();
+    const handleResizeEndDrag = useCallback(
+        (event: MouseEvent | TouchEvent | PointerEvent, info: { delta: { x: number } }) => {
+            if (contentWidth === 0 || videoDuration === 0) return;
 
-        let newWidth = currentWidth + info.delta.x;
+            const pointerEvent = event as PointerEvent;
+            const currentX = fragmentX.get();
+            const minWidth = timeToPixels(MIN_FRAGMENT_DURATION);
+            const maxWidth = timeToPixels(boundaries.maxEnd) - currentX;
+            let newWidth = clamp(fragmentWidth.get() + info.delta.x, minWidth, maxWidth);
 
-        const minWidth = timeToPixels(MIN_FRAGMENT_DURATION);
-        newWidth = Math.max(minWidth, newWidth);
+            if (!pointerEvent.altKey) {
+                const endPx = currentX + newWidth;
+                let bestDistance = Infinity;
+                let bestEndPx: number | null = null;
 
-        const currentX = fragmentX.get();
-        const currentStart = pixelsToTime(currentX);
-        const maxWidth = timeToPixels(boundaries.maxEnd) - currentX;
-        newWidth = Math.min(newWidth, maxWidth);
+                for (const point of snapPoints) {
+                    const pointPx = timeToPixels(point);
+                    const distance = Math.abs(pointPx - endPx);
+                    if (distance <= SNAP_THRESHOLD_PX && distance < bestDistance) {
+                        bestDistance = distance;
+                        bestEndPx = pointPx;
+                    }
+                }
 
-        const snappedEnd = Math.max(currentStart + MIN_FRAGMENT_DURATION, Math.min(boundaries.maxEnd, snapTime(pixelsToTime(currentX + newWidth), snapTargets, isShiftEvent(e))));
-        fragmentWidth.set(timeToPixels(snappedEnd - currentStart));
-    }, [contentWidth, videoDuration, fragmentWidth, fragmentX, boundaries, timeToPixels, pixelsToTime, snapTargets]);
+                if (bestEndPx !== null) {
+                    newWidth = clamp(bestEndPx - currentX, minWidth, maxWidth);
+                    setSnapX(bestEndPx);
+                } else {
+                    setSnapX(null);
+                }
+            }
 
-    const handleResizeStart = useCallback((handle: 'start' | 'end') => {
-        setIsResizing(handle);
-        onDragStateChange?.(true);
-    }, [onDragStateChange]);
+            fragmentWidth.set(newWidth);
+        },
+        [contentWidth, videoDuration, fragmentWidth, fragmentX, boundaries, timeToPixels, snapPoints]
+    );
+
+    const handleResizeStart = useCallback(
+        (handle: "start" | "end") => {
+            setIsResizing(handle);
+            onDragStateChange?.(true);
+        },
+        [onDragStateChange]
+    );
 
     const handleResizeEnd = useCallback(() => {
         setIsResizing(null);
+        setSnapX(null);
         onDragStateChange?.(false);
 
-        const newStartTime = pixelsToTime(fragmentX.get());
-        const newEndTime = pixelsToTime(fragmentX.get() + fragmentWidth.get());
+        const newStartTime = clamp(pixelsToTime(fragmentX.get()), 0, videoDuration);
+        const newEndTime = clamp(pixelsToTime(fragmentX.get() + fragmentWidth.get()), 0, videoDuration);
 
         onUpdate({
-            startTime: Math.max(0, newStartTime),
-            endTime: Math.min(videoDuration, newEndTime),
+            startTime: newStartTime,
+            endTime: Math.max(newStartTime + MIN_FRAGMENT_DURATION, newEndTime),
         });
     }, [fragmentX, fragmentWidth, pixelsToTime, videoDuration, onUpdate, onDragStateChange]);
 
-    const duration = fragment.endTime - fragment.startTime;
-    const isInteracting = isDragging || isResizing !== null;
-
     return (
-        <motion.div
-            ref={containerRef}
-            className={`absolute h-[80%] top-[10%] rounded-md flex items-center border transition-shadow select-none ${isSelected || isInteracting
-                    ? 'bg-blue-500/30 border-blue-400/70 shadow-[0_0_10px_rgba(59,130,246,0.3)] z-10'
-                    : 'bg-blue-600/20 border-blue-500/35 hover:border-blue-500/60'
-                } ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
-            style={{
-                x: fragmentX,
-                width: fragmentWidth,
-                background: isSelected || isInteracting
-                    ? 'linear-gradient(180deg, rgba(59, 130, 246, 0.5) 0%, rgba(29, 78, 216, 0.4) 100%)'
-                    : 'linear-gradient(180deg, rgba(37, 99, 235, 0.2) 0%, rgba(30, 58, 138, 0.15) 100%)',
-                boxShadow: isSelected || isInteracting
-                    ? 'inset 0 1px 0 rgba(255,255,255,0.3), 0 0 10px rgba(59,130,246,0.3)'
-                    : 'inset 0 1px 0 rgba(255,255,255,0.1)'
-            }}
-            drag="x"
-            dragConstraints={{ left: 0, right: contentWidth }}
-            dragElastic={0}
-            dragMomentum={false}
-            onDrag={handleDrag}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-            onClick={(e) => {
-                e.stopPropagation();
-                onSelect();
-            }}
-            onMouseEnter={onMouseEnter}
-            onMouseLeave={onMouseLeave}
-            whileTap={{ scale: 0.98 }}
-            role="slider"
-            aria-valuemin={0}
-            aria-valuemax={videoDuration}
-            aria-valuenow={fragment.startTime}
-            aria-label={`Zoom fragment ${zoomLevelToFactor(fragment.zoomLevel).toFixed(1)}x, ${duration.toFixed(1)}s`}
-            tabIndex={0}
-        >
-            {/* Resize handle - Start */}
+        <>
+            {snapX !== null && (
+                <div
+                    className="pointer-events-none absolute top-0 bottom-0 z-[2] w-px bg-blue-300/70 shadow-[0_0_12px_rgba(96,165,250,0.65)]"
+                    style={{ left: snapX }}
+                />
+            )}
+
             <motion.div
-                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize z-20 group/resize flex items-center justify-center"
+                ref={containerRef}
+                className={`absolute top-[9%] h-[82%] select-none overflow-hidden rounded-lg border transition-shadow ${
+                    isSelected || isInteracting
+                        ? "z-10 cursor-grab border-blue-300/80 shadow-[0_0_22px_rgba(59,130,246,0.45)]"
+                        : "z-0 cursor-grab border-blue-500/35 hover:border-blue-400/65"
+                } ${isDragging ? "cursor-grabbing" : ""}`}
+                style={{
+                    x: fragmentX,
+                    width: fragmentWidth,
+                    background:
+                        isSelected || isInteracting
+                            ? "linear-gradient(135deg, rgba(59,130,246,0.62), rgba(14,165,233,0.34) 48%, rgba(30,64,175,0.52))"
+                            : "linear-gradient(135deg, rgba(37,99,235,0.28), rgba(14,165,233,0.14) 48%, rgba(30,58,138,0.22))",
+                    boxShadow:
+                        isSelected || isInteracting
+                            ? "inset 0 1px 0 rgba(255,255,255,0.28), 0 12px 32px rgba(37,99,235,0.18)"
+                            : "inset 0 1px 0 rgba(255,255,255,0.12)",
+                }}
                 drag="x"
-                dragConstraints={{ left: 0, right: 0 }}
+                dragConstraints={{ left: 0, right: contentWidth }}
                 dragElastic={0}
                 dragMomentum={false}
-                onDrag={handleResizeStartDrag}
-                onDragStart={() => handleResizeStart('start')}
-                onDragEnd={handleResizeEnd}
-                onClick={(e) => e.stopPropagation()}
+                onDrag={handleDrag}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                onClick={(event) => {
+                    event.stopPropagation();
+                    onSelect();
+                }}
+                onMouseEnter={onMouseEnter}
+                onMouseLeave={onMouseLeave}
+                whileTap={{ scale: 0.985 }}
                 role="slider"
-                aria-label="Resize start"
                 aria-valuemin={0}
                 aria-valuemax={videoDuration}
                 aria-valuenow={fragment.startTime}
+                aria-label={`Zoom fragment ${zoomFactor.toFixed(1)}x, ${duration.toFixed(1)}s`}
                 tabIndex={0}
             >
-                <div className={`w-1 h-6 rounded rounded-md-full transition-all ${isResizing === 'start'
-                        ? 'bg-blue-300 scale-110'
-                        : 'bg-blue-400/60 group-hover/resize:bg-blue-300'
-                    }`} />
-            </motion.div>
+                <div className="absolute inset-0 opacity-50">
+                    <div className="absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-white/18 to-transparent" />
+                    <div className="absolute inset-y-0 right-0 w-1/3 bg-gradient-to-l from-black/18 to-transparent" />
+                    {fragment.movementEnabled && (
+                        <div className="absolute left-[18%] right-[18%] top-1/2 h-px -translate-y-1/2 bg-blue-100/25">
+                            <div className="absolute -left-1 -top-1 size-2 rounded-full bg-blue-100/70" />
+                            <div className="absolute -right-1 -top-1 size-2 rounded-full bg-cyan-200/70" />
+                        </div>
+                    )}
+                </div>
 
-            {/* Content */}
-            <div className="flex-1 flex flex-col items-center justify-center pointer-events-none overflow-hidden px-2">
-                <span className={`text-[10px] truncate ${isSelected || isInteracting ? 'text-blue-200' : 'text-blue-300/70'}`}>
-                    Zoom
-                </span>
-                <span className={`text-[9px] truncate ${isSelected || isInteracting ? 'text-blue-300/70' : 'text-blue-400/45'}`}>
-                    {zoomLevelToFactor(fragment.zoomLevel).toFixed(1)}× · {duration.toFixed(1)}s
-                </span>
-            </div>
+                <motion.div
+                    className="absolute left-0 top-0 bottom-0 z-20 flex w-3 cursor-ew-resize items-center justify-center group/resize"
+                    drag="x"
+                    dragConstraints={{ left: 0, right: 0 }}
+                    dragElastic={0}
+                    dragMomentum={false}
+                    onDrag={handleResizeStartDrag}
+                    onDragStart={() => handleResizeStart("start")}
+                    onDragEnd={handleResizeEnd}
+                    onClick={(event) => event.stopPropagation()}
+                    role="slider"
+                    aria-label="Resize zoom start"
+                    aria-valuemin={0}
+                    aria-valuemax={videoDuration}
+                    aria-valuenow={fragment.startTime}
+                    tabIndex={0}
+                >
+                    <div
+                        className={`h-7 w-1 rounded-full transition-all ${
+                            isResizing === "start"
+                                ? "scale-110 bg-white"
+                                : "bg-blue-200/65 group-hover/resize:bg-white"
+                        }`}
+                    />
+                </motion.div>
 
-            {/* Resize handle - End */}
-            <motion.div
-                className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize z-20 group/resize flex items-center justify-center"
-                drag="x"
-                dragConstraints={{ left: 0, right: 0 }}
-                dragElastic={0}
-                dragMomentum={false}
-                onDrag={handleResizeEndDrag}
-                onDragStart={() => handleResizeStart('end')}
-                onDragEnd={handleResizeEnd}
-                onClick={(e) => e.stopPropagation()}
-                role="slider"
-                aria-label="Resize end"
-                aria-valuemin={0}
-                aria-valuemax={videoDuration}
-                aria-valuenow={fragment.endTime}
-                tabIndex={0}
-            >
-                <div className={`w-1 h-6 rounded rounded-md-full transition-all ${isResizing === 'end'
-                        ? 'bg-blue-300 scale-110'
-                        : 'bg-blue-400/60 group-hover/resize:bg-blue-300'
-                    }`} />
+                <div className="pointer-events-none relative z-10 flex h-full min-w-0 flex-1 items-center justify-center px-3">
+                    <div className="min-w-0 text-center leading-tight">
+                        <div className="flex items-center justify-center gap-1.5">
+                            <Icon icon="solar:magnifer-zoom-in-bold" width="13" className="text-blue-100/90" />
+                            <span className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-blue-50">
+                                Zoom
+                            </span>
+                        </div>
+                        <div className="mt-0.5 truncate text-[9px] font-mono text-blue-100/65">
+                            {zoomFactor.toFixed(1)}× · {formatDuration(duration)} · {modeConfig.label}
+                        </div>
+                    </div>
+                </div>
+
+                <motion.div
+                    className="absolute right-0 top-0 bottom-0 z-20 flex w-3 cursor-ew-resize items-center justify-center group/resize"
+                    drag="x"
+                    dragConstraints={{ left: 0, right: 0 }}
+                    dragElastic={0}
+                    dragMomentum={false}
+                    onDrag={handleResizeEndDrag}
+                    onDragStart={() => handleResizeStart("end")}
+                    onDragEnd={handleResizeEnd}
+                    onClick={(event) => event.stopPropagation()}
+                    role="slider"
+                    aria-label="Resize zoom end"
+                    aria-valuemin={0}
+                    aria-valuemax={videoDuration}
+                    aria-valuenow={fragment.endTime}
+                    tabIndex={0}
+                >
+                    <div
+                        className={`h-7 w-1 rounded-full transition-all ${
+                            isResizing === "end"
+                                ? "scale-110 bg-white"
+                                : "bg-blue-200/65 group-hover/resize:bg-white"
+                        }`}
+                    />
+                </motion.div>
             </motion.div>
-        </motion.div>
+        </>
     );
 }
 
-// Helper function to check if a time range overlaps with existing fragments
 export function canAddFragmentAt(
     startTime: number,
     endTime: number,
@@ -324,7 +421,6 @@ export function canAddFragmentAt(
     return true;
 }
 
-// Find all available gaps in the timeline
 function findAllGaps(
     existingFragments: ZoomFragment[],
     videoDuration: number,
@@ -334,33 +430,24 @@ function findAllGaps(
     const sorted = [...existingFragments].sort((a, b) => a.startTime - b.startTime);
 
     if (sorted.length === 0) {
-        if (videoDuration >= minDuration) {
-            gaps.push({ start: 0, end: videoDuration });
-        }
+        if (videoDuration >= minDuration) gaps.push({ start: 0, end: videoDuration });
         return gaps;
     }
 
-    if (sorted[0].startTime >= minDuration) {
-        gaps.push({ start: 0, end: sorted[0].startTime });
-    }
+    if (sorted[0].startTime >= minDuration) gaps.push({ start: 0, end: sorted[0].startTime });
 
-    for (let i = 0; i < sorted.length - 1; i++) {
+    for (let i = 0; i < sorted.length - 1; i += 1) {
         const gapStart = sorted[i].endTime;
         const gapEnd = sorted[i + 1].startTime;
-        if (gapEnd - gapStart >= minDuration) {
-            gaps.push({ start: gapStart, end: gapEnd });
-        }
+        if (gapEnd - gapStart >= minDuration) gaps.push({ start: gapStart, end: gapEnd });
     }
 
     const lastEnd = sorted[sorted.length - 1].endTime;
-    if (videoDuration - lastEnd >= minDuration) {
-        gaps.push({ start: lastEnd, end: videoDuration });
-    }
+    if (videoDuration - lastEnd >= minDuration) gaps.push({ start: lastEnd, end: videoDuration });
 
     return gaps;
 }
 
-// Find valid position for new fragment (avoiding overlaps)
 export function findValidFragmentPosition(
     clickTime: number,
     defaultDuration: number,
@@ -368,10 +455,7 @@ export function findValidFragmentPosition(
     videoDuration: number
 ): { startTime: number; endTime: number } | null {
     const gaps = findAllGaps(existingFragments, videoDuration, defaultDuration);
-
-    if (gaps.length === 0) {
-        return null; // No space available
-    }
+    if (gaps.length === 0) return null;
 
     for (const gap of gaps) {
         if (clickTime >= gap.start && clickTime <= gap.end) {
@@ -396,34 +480,22 @@ export function findValidFragmentPosition(
     let closestDistance = Infinity;
 
     for (const gap of gaps) {
-        const distToStart = Math.abs(clickTime - gap.start);
-        const distToEnd = Math.abs(clickTime - gap.end);
         const gapCenter = (gap.start + gap.end) / 2;
-        const distToCenter = Math.abs(clickTime - gapCenter);
+        const distance = Math.abs(clickTime - gapCenter);
 
-        const minDist = Math.min(distToStart, distToEnd, distToCenter);
-
-        if (minDist < closestDistance) {
-            closestDistance = minDist;
+        if (distance < closestDistance) {
+            closestDistance = distance;
             closestGap = gap;
         }
     }
 
     if (clickTime <= closestGap.start) {
-        return {
-            startTime: closestGap.start,
-            endTime: closestGap.start + defaultDuration,
-        };
-    } else if (clickTime >= closestGap.end) {
-        return {
-            startTime: closestGap.end - defaultDuration,
-            endTime: closestGap.end,
-        };
-    } else {
-        return {
-            startTime: closestGap.start,
-            endTime: closestGap.start + defaultDuration,
-        };
+        return { startTime: closestGap.start, endTime: closestGap.start + defaultDuration };
     }
-}
 
+    if (clickTime >= closestGap.end) {
+        return { startTime: closestGap.end - defaultDuration, endTime: closestGap.end };
+    }
+
+    return { startTime: closestGap.start, endTime: closestGap.start + defaultDuration };
+}
