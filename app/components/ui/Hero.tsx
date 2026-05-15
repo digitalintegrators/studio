@@ -5,7 +5,6 @@ import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
 import Link from "next/link";
-import GitHubBadge from "@/components/ui/GitHubStars";
 import { saveUploadedVideo } from "@/lib/video-upload-cache";
 import { saveUploadedImage } from "@/lib/image-upload-cache";
 import { useRecording } from "@/hooks/RecordingContext";
@@ -98,10 +97,6 @@ export default function Hero({ onVideoUpload, onPhotoUpload }: HeroProps) {
   return (
     <>
       <div className="relative mx-auto max-w-6xl text-center">
-        <div className="absolute -top-16 left-4 hidden rotate-[-10deg] sm:block">
-          <GitHubBadge />
-        </div>
-
         <div className="animate-reveal mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-[#7df0f8]/20 bg-[#3c83f6]/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-[#bfeeff] shadow-[0_0_34px_rgba(60,131,246,0.16)]">
           <span className="h-1.5 w-1.5 rounded-full bg-[#7df0f8] shadow-[0_0_16px_rgba(125,240,248,0.85)]" />
           {text.eyebrow}
