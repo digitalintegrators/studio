@@ -15,6 +15,7 @@ interface ZoomFragmentTrackItemProps {
     contentWidth: number;
     videoDuration: number;
     otherFragments: ZoomFragment[];
+    snapTimes?: number[];
     onSelect: () => void;
     onUpdate: (updates: Partial<ZoomFragment>) => void;
     onDragStateChange?: (isDragging: boolean) => void;
@@ -39,6 +40,7 @@ export function ZoomFragmentTrackItem({
     contentWidth,
     videoDuration,
     otherFragments,
+    snapTimes = [],
     onSelect,
     onUpdate,
     onDragStateChange,
@@ -108,8 +110,11 @@ export function ZoomFragmentTrackItem({
         for (const item of otherFragments) {
             points.push(item.startTime, item.endTime);
         }
-        return points;
-    }, [otherFragments, videoDuration]);
+        for (const time of snapTimes) {
+            if (Number.isFinite(time)) points.push(time);
+        }
+        return Array.from(new Set(points)).sort((a, b) => a - b);
+    }, [otherFragments, snapTimes, videoDuration]);
 
     const applySnapping = useCallback(
         (x: number, fragmentDuration: number, disabled: boolean) => {
