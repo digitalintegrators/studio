@@ -480,6 +480,10 @@ export const VideoCanvas = forwardRef<
     initialHeight: number;
   } | null>(null);
   const [isDraggingMask, setIsDraggingMask] = useState(false);
+  const [maskAlignmentGuides, setMaskAlignmentGuides] = useState<{ vertical: number[]; horizontal: number[] }>({
+    vertical: [],
+    horizontal: [],
+  });
   const maskDragRef = useRef<{
     pointerId: number;
     fragmentId: string;
@@ -641,17 +645,44 @@ export const VideoCanvas = forwardRef<
       const dy =
         ((event.clientY - drag.startY) / Math.max(1, rect.height)) * 100;
 
+      const guides: { vertical: number[]; horizontal: number[] } = { vertical: [], horizontal: [] };
+
       if (drag.mode === "move") {
-        onUpdateMaskFragment(drag.fragmentId, {
-          x: clamp(drag.initialX + dx, 0, 100),
-          y: clamp(drag.initialY + dy, 0, 100),
-        });
+        let nextX = clamp(drag.initialX + dx, 0, 100);
+        let nextY = clamp(drag.initialY + dy, 0, 100);
+
+        if (Math.abs(nextX - 50) <= 1.2) {
+          nextX = 50;
+          guides.vertical.push(50);
+        }
+
+        if (Math.abs(nextY - 50) <= 1.2) {
+          nextY = 50;
+          guides.horizontal.push(50);
+        }
+
+        setMaskAlignmentGuides(guides);
+        onUpdateMaskFragment(drag.fragmentId, { x: nextX, y: nextY });
         return;
       }
 
+      let nextWidth = clamp(drag.initialWidth + dx * 2, 4, 100);
+      let nextHeight = clamp(drag.initialHeight + dy * 2, 4, 100);
+
+      if (event.shiftKey) {
+        const ratio = Math.max(0.05, drag.initialWidth / Math.max(1, drag.initialHeight));
+        const dominant = Math.abs(dx) > Math.abs(dy) ? "width" : "height";
+
+        if (dominant === "width") {
+          nextHeight = clamp(nextWidth / ratio, 4, 100);
+        } else {
+          nextWidth = clamp(nextHeight * ratio, 4, 100);
+        }
+      }
+
       onUpdateMaskFragment(drag.fragmentId, {
-        width: clamp(drag.initialWidth + dx * 2, 4, 100),
-        height: clamp(drag.initialHeight + dy * 2, 4, 100),
+        width: nextWidth,
+        height: nextHeight,
       });
     };
 
@@ -661,6 +692,7 @@ export const VideoCanvas = forwardRef<
 
       maskDragRef.current = null;
       setIsDraggingMask(false);
+      setMaskAlignmentGuides({ vertical: [], horizontal: [] });
     };
 
     window.addEventListener("pointermove", handlePointerMove);
@@ -1265,6 +1297,7 @@ export const VideoCanvas = forwardRef<
     if (!activeMaskFragment) return;
 
     const fragment = activeMaskFragment;
+    const preset = fragment.preset ?? "blur";
     const x = (fragment.x / 100) * canvasWidth;
     const y = (fragment.y / 100) * canvasHeight;
     const width = (fragment.width / 100) * canvasWidth;
@@ -1272,13 +1305,45 @@ export const VideoCanvas = forwardRef<
     const left = x - width / 2;
     const top = y - height / 2;
     const radius = Math.max(0, fragment.radius ?? 18) * (canvasWidth / 1920);
-    const opacity = Math.max(0, Math.min(0.95, fragment.opacity ?? 0.72));
+    const opacity = Math.max(0, Math.min(0.95, fragment.opacity ?? 0.5));
+    const blurAmount = Math.max(0, Math.min(40, fragment.blur ?? 0));
+    const pixelSize = Math.max(4, Math.min(32, fragment.pixelSize ?? 12));
 
-    const blurAmount = Math.max(0, Math.min(40, fragment.blur ?? 8));
+    const clipShape = () => {
+      ctx.beginPath();
+      if (fragment.shape === "circle") {
+        ctx.ellipse(x, y, width / 2, height / 2, 0, 0, Math.PI * 2);
+      } else if (fragment.shape === "rounded") {
+        drawRoundedRect(ctx, left, top, width, height, radius);
+      } else {
+        ctx.rect(left, top, width, height);
+      }
+    };
 
     ctx.save();
 
-    if (blurAmount > 0) {
+    if (preset === "pixelate") {
+      const sourceCanvas = ctx.canvas;
+      const smallWidth = Math.max(1, Math.floor(width / pixelSize));
+      const smallHeight = Math.max(1, Math.floor(height / pixelSize));
+      const pixelCanvas = document.createElement("canvas");
+      pixelCanvas.width = smallWidth;
+      pixelCanvas.height = smallHeight;
+      const pixelCtx = pixelCanvas.getContext("2d");
+
+      if (pixelCtx) {
+        pixelCtx.imageSmoothingEnabled = false;
+        pixelCtx.drawImage(sourceCanvas, left, top, width, height, 0, 0, smallWidth, smallHeight);
+
+        ctx.save();
+        clipShape();
+        ctx.clip();
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(pixelCanvas, 0, 0, smallWidth, smallHeight, left, top, width, height);
+        ctx.imageSmoothingEnabled = true;
+        ctx.restore();
+      }
+    } else if (blurAmount > 0) {
       const sourceCanvas = ctx.canvas;
       const padding = blurAmount * 2;
       const sampleLeft = Math.max(0, left - padding);
@@ -1293,71 +1358,45 @@ export const VideoCanvas = forwardRef<
       const blurCtx = blurCanvas.getContext("2d");
 
       if (blurCtx) {
-        blurCtx.drawImage(
-          sourceCanvas,
-          sampleLeft,
-          sampleTop,
-          sampleWidth,
-          sampleHeight,
-          0,
-          0,
-          sampleWidth,
-          sampleHeight,
-        );
+        blurCtx.drawImage(sourceCanvas, sampleLeft, sampleTop, sampleWidth, sampleHeight, 0, 0, sampleWidth, sampleHeight);
 
         ctx.save();
-        if (fragment.shape === "circle") {
-          ctx.beginPath();
-          ctx.ellipse(x, y, width / 2, height / 2, 0, 0, Math.PI * 2);
-          ctx.clip();
-        } else if (fragment.shape === "rounded") {
-          drawRoundedRect(ctx, left, top, width, height, radius);
-          ctx.clip();
-        } else {
-          ctx.beginPath();
-          ctx.rect(left, top, width, height);
-          ctx.clip();
-        }
-
-        ctx.filter = `blur(${blurAmount}px) saturate(115%)`;
+        clipShape();
+        ctx.clip();
+        ctx.filter = `blur(${blurAmount}px) saturate(${preset === "highlight" ? 135 : 115}%)`;
         ctx.drawImage(blurCanvas, sampleLeft, sampleTop);
         ctx.filter = "none";
         ctx.restore();
       }
     }
 
+    ctx.save();
+    clipShape();
+    ctx.clip();
     ctx.globalAlpha = opacity;
-    ctx.fillStyle = "rgba(5, 5, 10, 0.38)";
 
-    if (fragment.shape === "circle") {
-      ctx.beginPath();
-      ctx.ellipse(x, y, width / 2, height / 2, 0, 0, Math.PI * 2);
-      ctx.fill();
+    if (preset === "highlight") {
+      const glow = ctx.createRadialGradient(x, y, 0, x, y, Math.max(width, height) * 0.8);
+      glow.addColorStop(0, "rgba(255,255,255,0.22)");
+      glow.addColorStop(0.65, "rgba(250,204,21,0.10)");
+      glow.addColorStop(1, "rgba(250,204,21,0)");
+      ctx.fillStyle = glow;
+    } else if (preset === "dim") {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.68)";
+    } else if (preset === "pixelate") {
+      ctx.fillStyle = "rgba(5, 5, 10, 0.18)";
     } else {
-      ctx.beginPath();
-      if (fragment.shape === "rounded") {
-        drawRoundedRect(ctx, left, top, width, height, radius);
-      } else {
-        ctx.rect(left, top, width, height);
-      }
-      ctx.fill();
+      ctx.fillStyle = "rgba(5, 5, 10, 0.34)";
     }
+
+    ctx.fillRect(left, top, width, height);
+    ctx.restore();
 
     ctx.globalAlpha = 1;
-    ctx.strokeStyle = "rgba(240, 171, 252, 0.35)";
+    ctx.strokeStyle = preset === "highlight" ? "rgba(250, 204, 21, 0.42)" : "rgba(240, 171, 252, 0.35)";
     ctx.lineWidth = Math.max(2, canvasWidth / 960);
-
-    if (fragment.shape === "circle") {
-      ctx.beginPath();
-      ctx.ellipse(x, y, width / 2, height / 2, 0, 0, Math.PI * 2);
-      ctx.stroke();
-    } else if (fragment.shape === "rounded") {
-      drawRoundedRect(ctx, left, top, width, height, radius);
-      ctx.stroke();
-    } else {
-      ctx.strokeRect(left, top, width, height);
-    }
-
+    clipShape();
+    ctx.stroke();
     ctx.restore();
   };
 
@@ -2844,9 +2883,22 @@ export const VideoCanvas = forwardRef<
                             : activeMaskFragment.shape === "rounded"
                               ? `${activeMaskFragment.radius ?? 18}px`
                               : "2px",
-                        background: `rgba(5, 5, 10, ${Math.max(0.12, Math.min(0.62, (activeMaskFragment.opacity ?? 0.72) * 0.52))})`,
-                        backdropFilter: `blur(${Math.max(0, activeMaskFragment.blur ?? 8)}px) saturate(115%)`,
-                        WebkitBackdropFilter: `blur(${Math.max(0, activeMaskFragment.blur ?? 8)}px) saturate(115%)`,
+                        background:
+                          (activeMaskFragment.preset ?? "blur") === "highlight"
+                            ? `radial-gradient(circle at center, rgba(255,255,255,${Math.max(0.1, Math.min(0.32, activeMaskFragment.opacity ?? 0.42))}), rgba(250,204,21,0.10) 62%, rgba(250,204,21,0.02))`
+                            : (activeMaskFragment.preset ?? "blur") === "dim"
+                              ? `rgba(0, 0, 0, ${Math.max(0.16, Math.min(0.75, activeMaskFragment.opacity ?? 0.58))})`
+                              : `rgba(5, 5, 10, ${Math.max(0.08, Math.min(0.46, (activeMaskFragment.opacity ?? 0.38) * 0.5))})`,
+                        backdropFilter:
+                          (activeMaskFragment.preset ?? "blur") === "pixelate"
+                            ? `blur(0.6px) contrast(125%) saturate(125%)`
+                            : `blur(${Math.max(0, activeMaskFragment.blur ?? 8)}px) saturate(${(activeMaskFragment.preset ?? "blur") === "highlight" ? 135 : 115}%)`,
+                        WebkitBackdropFilter:
+                          (activeMaskFragment.preset ?? "blur") === "pixelate"
+                            ? `blur(0.6px) contrast(125%) saturate(125%)`
+                            : `blur(${Math.max(0, activeMaskFragment.blur ?? 8)}px) saturate(${(activeMaskFragment.preset ?? "blur") === "highlight" ? 135 : 115}%)`,
+                        maskImage: `radial-gradient(circle at center, black ${Math.max(20, 100 - (activeMaskFragment.feather ?? 12) * 2)}%, transparent 100%)`,
+                        WebkitMaskImage: `radial-gradient(circle at center, black ${Math.max(20, 100 - (activeMaskFragment.feather ?? 12) * 2)}%, transparent 100%)`,
                       }}
                     />
 
@@ -2901,6 +2953,16 @@ export const VideoCanvas = forwardRef<
                           />
                         </div>
                       )}
+                  </div>
+                )}
+                {(isDraggingMask || isMaskEditing) && (maskAlignmentGuides.vertical.length > 0 || maskAlignmentGuides.horizontal.length > 0) && (
+                  <div className="absolute inset-0 pointer-events-none" style={{ zIndex: VIDEO_Z_INDEX + 170 }}>
+                    {maskAlignmentGuides.vertical.map((x, index) => (
+                      <div key={`mask-v-${index}`} className="absolute top-0 bottom-0 w-px bg-fuchsia-200/45" style={{ left: `${x}%` }} />
+                    ))}
+                    {maskAlignmentGuides.horizontal.map((y, index) => (
+                      <div key={`mask-h-${index}`} className="absolute left-0 right-0 h-px bg-fuchsia-200/45" style={{ top: `${y}%` }} />
+                    ))}
                   </div>
                 )}
                 {shouldShowSpotlight && cursorFrame && (
