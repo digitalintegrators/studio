@@ -1,5 +1,7 @@
 import { AspectRatio } from "@/types/editor.types";
-import { ZoomStateCanvas, ZoomFragment, calculateZoomPhaseState, zoomLevelToFactor, speedToTransitionMs, easeOutQuart } from "@/types/zoom.types";
+import { ZoomStateCanvas, ZoomFragment, calculateZoomPhaseState, zoomLevelToFactor, speedToTransitionMs, easeOutQuart, calculateCursorFollowFocus } from "@/types/zoom.types";
+import type { CursorRecordingData } from "@/types/cursor.types";
+import { interpolateCursorPosition } from "@/types/cursor.types";
 export function drawRoundedRect(
     ctx: CanvasRenderingContext2D,
     x: number,
@@ -221,7 +223,8 @@ export interface ZoomStateCanvasExport extends ZoomStateCanvas {
  */
 export function calculateSmoothZoom(
     frameTime: number,
-    zoomFragments: ZoomFragment[]
+    zoomFragments: ZoomFragment[],
+    cursorData?: CursorRecordingData
 ): ZoomStateCanvasExport {
     const DEFAULT_STATE: ZoomStateCanvasExport = {
         scale: 1,
@@ -242,11 +245,24 @@ export function calculateSmoothZoom(
 
     if (activeFragment) {
         const phaseState = calculateZoomPhaseState(activeFragment, frameTime, true);
+        const cursorFrame = activeFragment.followCursor && cursorData?.hasCursorData
+            ? interpolateCursorPosition(
+                cursorData.keyframes,
+                frameTime,
+                Math.round((activeFragment.followSmoothing ?? 0.62) * 100)
+            )
+            : null;
+        const followedFocus = calculateCursorFollowFocus(
+            activeFragment,
+            phaseState.focusX,
+            phaseState.focusY,
+            cursorFrame
+        );
 
         return {
             scale: phaseState.scale,
-            focusX: phaseState.focusX,
-            focusY: phaseState.focusY,
+            focusX: followedFocus.focusX,
+            focusY: followedFocus.focusY,
             rotateX: phaseState.rotateX,
             rotateY: phaseState.rotateY,
             perspective: phaseState.perspective,
