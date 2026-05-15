@@ -120,10 +120,14 @@ export default function Hero({ onVideoUpload, onPhotoUpload }: HeroProps) {
             type="button"
             onClick={() => setSetupDialogOpen(true)}
             disabled={isCountdown || isProcessing}
-            className="group inline-flex h-13 items-center justify-center gap-2 rounded-2xl bg-white px-6 text-sm font-black tracking-tight text-[#07111f] shadow-[0_20px_70px_rgba(255,255,255,0.2)] transition hover:scale-[1.02] hover:bg-[#eef9ff] disabled:cursor-not-allowed disabled:opacity-60"
+            className="group inline-flex h-14 items-center justify-center gap-3 rounded-[1.35rem] border border-red-300/35 bg-gradient-to-b from-red-500 to-red-600 px-7 text-sm font-black tracking-tight text-white shadow-[0_24px_80px_rgba(239,68,68,0.38),inset_0_1px_0_rgba(255,255,255,0.25)] transition hover:scale-[1.025] hover:from-red-400 hover:to-red-600 hover:shadow-[0_30px_96px_rgba(239,68,68,0.5)] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <Icon icon="material-symbols:cast-outline-rounded" className="h-5 w-5" />
+            <span className="relative flex h-5 w-5 items-center justify-center">
+              <span className="absolute inset-0 rounded-full bg-white/30 blur-md" />
+              <Icon icon="material-symbols:cast-outline-rounded" className="relative h-5 w-5" />
+            </span>
             {text.record}
+            <span className="ml-1 hidden rounded-lg border border-white/20 bg-white/10 px-2 py-1 text-[11px] font-black text-white/75 sm:inline-flex">Alt + D</span>
           </button>
 
           <Link
