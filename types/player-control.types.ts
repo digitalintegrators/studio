@@ -1,6 +1,8 @@
 import type { AspectRatio } from "./editor.types";
 import type { ImageMaskConfig } from "./photo.types";
 
+export type EffectInsertMode = "spotlight" | "mask";
+
 export interface PlayerControlsProps {
     isPlaying: boolean;
     currentTime: number;
@@ -20,6 +22,8 @@ export interface PlayerControlsProps {
     videoMaskConfig: ImageMaskConfig;
     onVideoMaskConfigChange: (config: ImageMaskConfig) => void;
     videoPreviewImageUrl?: string | null;
+    effectInsertMode?: EffectInsertMode;
+    onEffectInsertModeChange?: (mode: EffectInsertMode) => void;
 }
 
 export const MIN_ZOOM = 1;
