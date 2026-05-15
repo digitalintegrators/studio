@@ -6,7 +6,7 @@ import Atropos from "atropos";
 
 const featurePills = ["Spotlight", "Máscara", "Zoom", "Audio", "Export"];
 
-export default function EditorPreview() {
+export default function EditorPreview({ compact = false }: { compact?: boolean } = {}) {
   const atroposRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -23,29 +23,31 @@ export default function EditorPreview() {
   }, []);
 
   return (
-    <section id="preview" className="relative mx-auto mt-12 max-w-6xl isolate">
+    <section id="preview" className={`${compact ? "relative mx-auto max-w-[1420px] isolate" : "relative mx-auto mt-12 max-w-6xl isolate"}`}>
       <div className="pointer-events-none absolute left-1/2 top-24 -z-10 h-96 w-[78%] -translate-x-1/2 rounded-full bg-[#3c83f6]/22 blur-[150px]" />
       <div className="pointer-events-none absolute right-0 top-40 -z-10 h-80 w-80 rounded-full bg-violet-500/15 blur-[120px]" />
 
-      <div className="mx-auto mb-10 max-w-3xl text-center">
-        <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-[#9bdcff] shadow-[0_0_34px_rgba(60,131,246,0.16)]">
-          <span className="h-1.5 w-1.5 rounded-full bg-[#7df0f8] shadow-[0_0_16px_rgba(125,240,248,0.85)]" />
-          Product workspace
-        </span>
+      {!compact && (
+        <div className="mx-auto mb-10 max-w-3xl text-center">
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-[#9bdcff] shadow-[0_0_34px_rgba(60,131,246,0.16)]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#7df0f8] shadow-[0_0_16px_rgba(125,240,248,0.85)]" />
+            Product workspace
+          </span>
 
-        <h2 className="mt-5 text-balance text-4xl font-semibold tracking-[-0.06em] text-white sm:text-6xl">
-          Diseñado para que el editor se vea tan bien como el resultado.
-        </h2>
-        <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-white/50">
-          Todo el producto respira la misma estética: vidrio, profundidad, movimiento suave y controles enfocados en explicar mejor.
-        </p>
-      </div>
+          <h2 className="mt-5 text-balance text-4xl font-semibold tracking-[-0.06em] text-white sm:text-6xl">
+            Diseñado para que el editor se vea tan bien como el resultado.
+          </h2>
+          <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-white/50">
+            Todo el producto respira la misma estética: vidrio, profundidad, movimiento suave y controles enfocados en explicar mejor.
+          </p>
+        </div>
+      )}
 
-      <div ref={atroposRef} className="atropos w-full rounded-[2.25rem]">
+      <div ref={atroposRef} className="atropos w-full rounded-[2.75rem]">
         <div className="atropos-scale">
           <div className="atropos-rotate">
             <div className="atropos-inner rounded-[2.25rem]">
-              <div className="relative overflow-hidden rounded-[2.25rem] border border-white/10 bg-[#050914] p-2 shadow-[0_34px_160px_rgba(0,0,0,0.72)]" data-atropos-offset="2">
+              <div className="relative overflow-hidden rounded-[2.75rem] border border-white/10 bg-[#050914] p-2 shadow-[0_54px_190px_rgba(0,0,0,0.78)]" data-atropos-offset="2">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(60,131,246,0.24),transparent_42%),radial-gradient(circle_at_90%_20%,rgba(168,85,247,0.12),transparent_28%)]" />
 
                 <div className="relative overflow-hidden rounded-[1.7rem] border border-white/10 bg-[#07101d]">
