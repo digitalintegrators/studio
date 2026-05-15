@@ -1,10 +1,9 @@
+import { StructuredData, generateOrganizationSchema, generateWebAppSchema } from "@/app/components/seo/StructuredData";
 import { CarouselDemos } from "@/app/components/ui/CarouselDemos";
 import EditorPreview from "@/app/components/ui/EditorPreview";
 import Hero from "@/app/components/ui/Hero";
-import { HeroScrollMask } from "@/app/components/ui/HeroScrollMask";
 import InteractiveRecordingSteps from "@/app/components/ui/RecordingSteps";
-import { StructuredData, generateWebAppSchema, generateOrganizationSchema } from "@/app/components/seo/StructuredData";
-import type { Metadata } from 'next';
+import type { Metadata } from "next";
 
 type Props = {
   params: Promise<{ locale: string }>;
@@ -12,22 +11,24 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale } = await params;
-  const baseUrl = 'https://studio.laboratorios.digital'; // 👈 CAMBIA ESTO
+  const baseUrl = "https://studio.laboratorios.digital";
 
   const metadata = {
     es: {
-      title: 'Crea demos profesionales y edita videos en segundos',
-      description: 'Plataforma de grabación y edición de video para demos, PoCs y contenido técnico. Sin instalaciones, directamente en tu navegador.',
-      keywords: ['editor de video', 'grabar pantalla', 'demos profesionales', 'screen recorder', 'video editor online'],
+      title: "Studio — Crea demos profesionales con edición cinematográfica",
+      description:
+        "Graba pantalla, cámara, micrófono y audio del sistema. Edita demos con timeline, spotlight, máscaras, zooms y exportación profesional.",
+      keywords: ["editor de video", "grabar pantalla", "demos profesionales", "screen recorder", "video editor online", "spotlight", "zoom video"],
     },
     en: {
-      title: 'Create Professional Demos and Edit Videos in Seconds',
-      description: 'Web-based video recording and editing platform for demos, PoCs and technical content.',
-      keywords: ['video editor', 'screen recorder', 'professional demos', 'online video editor'],
+      title: "Studio — Create cinematic product demos in your browser",
+      description:
+        "Record screen, camera, microphone and system audio. Edit demos with timeline, spotlight, masks, zooms and professional export.",
+      keywords: ["video editor", "screen recorder", "professional demos", "online video editor", "spotlight", "video zoom"],
     },
   };
 
-  const { title, description, keywords } = metadata[locale as 'es' | 'en'] || metadata.es;
+  const { title, description, keywords } = metadata[locale as "es" | "en"] || metadata.es;
 
   return {
     title,
@@ -49,12 +50,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
           url: `${baseUrl}/images/metadata/preview.jpg`,
           width: 1200,
           height: 630,
-          alt: 'Studio - Video Platform',
+          alt: "Studio - Video Platform",
         },
       ],
     },
     twitter: {
-      card: 'summary_large_image',
+      card: "summary_large_image",
       title,
       description,
       images: [`${baseUrl}/images/metadata/preview.jpg`],
@@ -62,48 +63,78 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
+function FeatureGrid() {
+  const features = [
+    { title: "Timeline premium", description: "Thumbnails, waveform y fragmentos visuales para editar rápido.", icon: "⌁" },
+    { title: "Spotlight & máscaras", description: "Resalta palabras, zonas o elementos clave del video.", icon: "◉" },
+    { title: "Zoom cinematográfico", description: "Prepara demos más claras con movimientos suaves y foco visual.", icon: "⌕" },
+    { title: "Grabación completa", description: "Pantalla, cámara, micrófono y audio del sistema desde navegador.", icon: "●" },
+  ];
+
+  return (
+    <section id="features" className="relative w-full py-16 sm:py-24">
+      <div className="mx-auto max-w-6xl px-6">
+        <div className="mb-10 text-center">
+          <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-cyan-100">
+            Editor visual
+          </span>
+          <h2 className="mt-5 text-3xl font-semibold tracking-[-0.05em] text-white sm:text-5xl">
+            Todo lo que necesitas para una demo pulida.
+          </h2>
+          <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-white/55">
+            Una experiencia optimizada para explicar productos, bugs, capacitaciones, PoCs y flujos técnicos sin herramientas pesadas.
+          </p>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {features.map((feature) => (
+            <article key={feature.title} className="group rounded-[1.5rem] border border-white/10 bg-white/[0.035] p-5 shadow-[0_18px_80px_rgba(0,0,0,0.22)] backdrop-blur-xl transition hover:-translate-y-1 hover:border-cyan-300/25 hover:bg-white/[0.055]">
+              <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-gradient-to-br from-cyan-300/15 to-violet-300/15 text-xl font-black text-cyan-100">
+                {feature.icon}
+              </div>
+              <h3 className="text-lg font-bold tracking-tight text-white">{feature.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-white/50">{feature.description}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default async function Home({ params }: Props) {
   const { locale } = await params;
 
   return (
     <>
-      <StructuredData data={generateWebAppSchema(locale as 'es' | 'en')} />
+      <StructuredData data={generateWebAppSchema(locale as "es" | "en")} />
       <StructuredData data={generateOrganizationSchema()} />
 
-      <div className="flex flex-col">
-        <div className="relative overflow-hidden bg-gradient-radial-primary w-full">
-
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-75 h-75 rounded-full bg-cyan-500/15 blur-[80px] pointer-events-none z-0" aria-hidden="true" />
-
-          <section className="pt-32 pb-6 sm:pb-14 bg-gradient-radial-primary" aria-label="Hero section">
-            <div className="max-w-6xl mx-auto px-6 text-center relative z-10">
-              <Hero />
-            </div>
-          </section>
-
-          <section className="w-full" aria-label="Product preview">
-            {/* <HeroScrollMask /> */}
-          </section>
+      <main className="relative min-h-screen overflow-hidden bg-[#05070d] text-white">
+        <div className="pointer-events-none fixed inset-0 z-0 opacity-70">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_-10%,rgba(59,130,246,0.22),transparent_34%),radial-gradient(circle_at_15%_20%,rgba(168,85,247,0.16),transparent_28%),linear-gradient(180deg,#05070d_0%,#070a12_45%,#030408_100%)]" />
+          <div className="absolute inset-0 opacity-[0.16] [background-image:radial-gradient(rgba(255,255,255,0.24)_1px,transparent_1px)] [background-size:26px_26px]" />
         </div>
 
-        <section className="w-full py-10 sm:py-16" aria-label="How it works">
-          <div className="max-w-6xl mx-auto px-6">
+        <section className="relative z-10 px-6 pb-10 pt-34 sm:pb-16 sm:pt-38" aria-label="Hero section">
+          <Hero />
+        </section>
+
+        <FeatureGrid />
+
+        <section className="relative z-10 w-full py-10 sm:py-16" aria-label="How it works">
+          <div className="mx-auto max-w-6xl px-6">
             <InteractiveRecordingSteps />
           </div>
         </section>
 
-        <div className="relative overflow-hidden bg-gradient-radial-primary w-full pt-0 pb-30 sm:py-20">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-250 h-[150%] rounded-[100%] blur-xl pointer-events-none" aria-hidden="true"></div>
-
-          <section className="w-full" aria-label="Editor features and demos">
-            <div className="w-full mx-auto bg-[url('/images/pages/dots.svg')] bg-no-repeat bg-contain bg-center">
-              <EditorPreview />
-            </div>
-
-            <CarouselDemos />
-          </section>
-        </div>
-      </div>
+        <section className="relative z-10 w-full overflow-hidden pb-24 pt-6 sm:pt-12" aria-label="Editor features and demos">
+          <div className="mx-auto max-w-6xl px-6">
+            <EditorPreview />
+          </div>
+          <CarouselDemos />
+        </section>
+      </main>
     </>
   );
 }
