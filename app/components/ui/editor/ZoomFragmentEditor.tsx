@@ -308,31 +308,40 @@ export function ZoomFragmentEditor({
                 </div>
 
 
-                <div className="space-y-3 p-3 bg-cyan-500/[0.04] border border-cyan-300/10 rounded-xl">
-                    <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 min-w-0">
-                            <Icon icon="solar:cursor-bold" width="16" className="text-cyan-300/85 shrink-0" />
-                            <div className="min-w-0">
-                                <p className="text-xs font-medium text-white/85">Seguir cursor</p>
-                                <p className="text-[10px] text-white/40 truncate">Usa el cursor grabado para mover suavemente la cámara.</p>
+                <div className={`overflow-hidden rounded-2xl border transition-all duration-300 ${fragment.followCursor ? "border-cyan-300/25 bg-cyan-400/[0.075] shadow-[0_0_44px_rgba(34,211,238,0.10)]" : "border-white/10 bg-white/[0.035]"}`}>
+                    <div className="flex items-center justify-between gap-4 px-4 py-3.5">
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-all ${fragment.followCursor ? "border-cyan-300/25 bg-cyan-300/12 text-cyan-200" : "border-white/10 bg-white/[0.045] text-white/55"}`}>
+                                <Icon icon="solar:cursor-bold" width="18" />
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                                <p className="text-[13px] font-semibold leading-none text-white/90">Seguir cursor</p>
+                                <p className="mt-1.5 line-clamp-2 text-[11px] leading-4 text-white/45">
+                                    Usa el cursor grabado para mover suavemente la cámara durante este zoom.
+                                </p>
                             </div>
                         </div>
+
                         <button
                             type="button"
+                            aria-pressed={fragment.followCursor ?? false}
                             onClick={() => onUpdate({
                                 followCursor: !(fragment.followCursor ?? false),
                                 followStrength: fragment.followStrength ?? 0.76,
                                 followSmoothing: fragment.followSmoothing ?? 0.62,
                                 followDeadzone: fragment.followDeadzone ?? 7,
                             })}
-                            className={`relative w-11 h-6 rounded-full transition-colors ${fragment.followCursor ? "bg-cyan-400" : "bg-white/15"}`}
+                            className={`relative h-8 w-[58px] shrink-0 rounded-full border transition-all duration-300 ${fragment.followCursor ? "border-cyan-200/30 bg-cyan-400 shadow-[0_0_28px_rgba(34,211,238,0.35)]" : "border-white/10 bg-white/14"}`}
                         >
-                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${fragment.followCursor ? "translate-x-6" : "translate-x-1"}`} />
+                            <span
+                                className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow-[0_5px_14px_rgba(0,0,0,0.35)] transition-transform duration-300 ${fragment.followCursor ? "translate-x-[28px]" : "translate-x-1"}`}
+                            />
                         </button>
                     </div>
 
                     {fragment.followCursor && (
-                        <div className="space-y-3 pt-3 border-t border-cyan-300/10">
+                        <div className="space-y-4 border-t border-cyan-300/10 px-4 pb-4 pt-4">
                             <SliderControl
                                 icon="solar:target-bold"
                                 label="Fuerza de seguimiento"
@@ -363,7 +372,7 @@ export function ZoomFragmentEditor({
                                 suffix="%"
                                 onChange={(value) => onUpdate({ followDeadzone: value })}
                             />
-                            <div className="rounded-lg border border-white/8 bg-black/20 px-3 py-2 text-[10px] leading-4 text-white/42">
+                            <div className="rounded-xl border border-white/8 bg-black/25 px-3.5 py-3 text-[11px] leading-5 text-white/46">
                                 Funciona cuando la grabación incluye datos de cursor. Si no existen, el zoom mantiene el enfoque manual A/B.
                             </div>
                         </div>
