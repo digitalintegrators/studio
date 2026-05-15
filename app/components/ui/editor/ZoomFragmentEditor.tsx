@@ -5,7 +5,7 @@ import { Icon } from "@iconify/react";
 import { useTranslations } from "next-intl";
 import { SliderControl } from "../SliderControl";
 import type { ZoomFragmentEditorProps } from "@/types/zoom.types";
-import { formatZoomTime, zoomLevelToFactor, speedToTransitionMs, calculateHoldDuration } from "@/types/zoom.types";
+import { formatZoomTime, zoomLevelToFactor, speedToTransitionMs, calculateHoldDuration, getZoomModeConfig, type ZoomCinematicMode } from "@/types/zoom.types";
 import { TooltipAction } from "@/components/ui/tooltip-action";
 
 export function ZoomFragmentEditor({
@@ -16,6 +16,8 @@ export function ZoomFragmentEditor({
     const tCommon = useTranslations("editor");
     const focusPreviewRef = useRef<HTMLDivElement>(null);
     const [editingPoint, setEditingPoint] = useState<'start' | 'end'>('start');
+    const cinematicModes: ZoomCinematicMode[] = ["smooth", "push", "dramatic", "subtle"];
+    const activeMode = fragment.cinematicMode ?? "smooth";
 
     const dynamicThumbnail = useMemo(() => {
         if (!getThumbnailForTime) return videoThumbnail || null;
@@ -305,7 +307,53 @@ export function ZoomFragmentEditor({
                     })()}
                 </div>
 
-                {/* 3D effect */}
+                
+                <div className="space-y-3 p-3 bg-white/3 border border-white/8 rounded-xl">
+                    <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                            <Icon icon="solar:camera-bold" width="16" className="text-blue-300/80 shrink-0" />
+                            <div className="min-w-0">
+                                <p className="text-xs font-medium text-white/85">Cinematic camera</p>
+                                <p className="text-[10px] text-white/40 truncate">Choose how this zoom enters, moves and releases.</p>
+                            </div>
+                        </div>
+                        <span className="rounded-full border border-blue-400/20 bg-blue-500/10 px-2 py-0.5 text-[10px] font-mono text-blue-200">
+                            {zoomLevelToFactor(fragment.zoomLevel).toFixed(1)}×
+                        </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                        {cinematicModes.map((mode) => {
+                            const config = getZoomModeConfig(mode);
+                            const selected = activeMode === mode;
+
+                            return (
+                                <button
+                                    key={mode}
+                                    type="button"
+                                    onClick={() => onUpdate({ cinematicMode: mode })}
+                                    className={`group rounded-lg border px-3 py-2 text-left transition-all ${
+                                        selected
+                                            ? "border-blue-400/60 bg-blue-500/18 shadow-[0_0_24px_rgba(59,130,246,0.18)]"
+                                            : "border-white/8 bg-white/[0.03] hover:border-white/18 hover:bg-white/[0.06]"
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className={`text-[11px] font-medium ${selected ? "text-blue-100" : "text-white/70"}`}>
+                                            {config.label}
+                                        </span>
+                                        {selected && <Icon icon="solar:check-circle-bold" width="14" className="text-blue-300" />}
+                                    </div>
+                                    <p className="mt-1 text-[9px] leading-3 text-white/35 group-hover:text-white/45">
+                                        {config.description}
+                                    </p>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+{/* 3D effect */}
                 <div className="space-y-3 p-3 bg-white/3 border border-white/8 rounded-lg">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
