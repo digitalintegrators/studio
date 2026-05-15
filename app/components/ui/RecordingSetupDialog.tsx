@@ -295,7 +295,7 @@ export default function RecordingSetupDialog({ open, onClose, onStart }: Props) 
                         <div className="bg-[#1C1C1C] rounded-lg h-5 w-full flex items-center justify-between px-2 border border-white/5 shadow-inner">
                           <Icon icon="material-symbols:lock" className="size-2.5 text-neutral-500 hover:text-neutral-200 transition-colors cursor-pointer" />
                           <span className="flex-1 text-center text-[9px] tracking-wide truncate px-2 text-neutral-300 leading-none">
-                            openvid.dev
+                            studio.laboratorios.digital
                           </span>
                           <Icon icon="material-symbols:star-outline" className="size-3 text-neutral-500 hover:text-neutral-200 transition-colors cursor-pointer" />
                         </div>
