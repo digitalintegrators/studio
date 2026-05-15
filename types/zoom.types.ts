@@ -23,6 +23,15 @@ export interface ZoomFragment {
     perspective3DAngleY?: number;
 
     cinematicMode?: ZoomCinematicMode;
+
+    /** Sigue el cursor grabado dentro del fragmento de zoom cuando hay datos de cursor disponibles. */
+    followCursor?: boolean;
+    /** Qué tanto se acerca el centro de cámara al cursor. 0 = manual, 1 = cursor completo. */
+    followStrength?: number;
+    /** Suavidad del seguimiento. 0 = reactivo, 1 = muy suave. */
+    followSmoothing?: number;
+    /** Zona muerta en porcentaje para evitar micro movimientos. */
+    followDeadzone?: number;
 }
 
 export interface ZoomTimelineState {
@@ -131,8 +140,8 @@ export function springOut(t: number): number {
 export function getZoomModeConfig(mode: ZoomCinematicMode = "smooth"): ZoomModeConfig {
     const configs: Record<ZoomCinematicMode, ZoomModeConfig> = {
         smooth: {
-            label: "Smooth",
-            description: "Balanced cinematic camera move",
+            label: "Suave",
+            description: "Movimiento equilibrado y cinematográfico",
             entryRatio: 0.28,
             exitRatio: 0.3,
             motionEase: smootherStep,
@@ -142,8 +151,8 @@ export function getZoomModeConfig(mode: ZoomCinematicMode = "smooth"): ZoomModeC
             damping: 0.92,
         },
         push: {
-            label: "Push",
-            description: "Fast push-in with a soft release",
+            label: "Impulso",
+            description: "Entrada rápida con salida suave",
             entryRatio: 0.22,
             exitRatio: 0.34,
             motionEase: easeInOutCinematic,
@@ -153,8 +162,8 @@ export function getZoomModeConfig(mode: ZoomCinematicMode = "smooth"): ZoomModeC
             damping: 0.88,
         },
         dramatic: {
-            label: "Dramatic",
-            description: "Longer in/out and stronger camera presence",
+            label: "Dramático",
+            description: "Más presencia de cámara y transiciones largas",
             entryRatio: 0.34,
             exitRatio: 0.38,
             motionEase: easeInOutCinematic,
@@ -164,8 +173,8 @@ export function getZoomModeConfig(mode: ZoomCinematicMode = "smooth"): ZoomModeC
             damping: 0.82,
         },
         subtle: {
-            label: "Subtle",
-            description: "Gentle focus without aggressive movement",
+            label: "Sutil",
+            description: "Enfoque ligero sin movimiento agresivo",
             entryRatio: 0.2,
             exitRatio: 0.24,
             motionEase: easeInOutSine,
@@ -338,6 +347,46 @@ export function calculateZoomPhaseState(
     };
 }
 
+export interface ZoomCursorFollowFrame {
+    x: number;
+    y: number;
+    clicking?: boolean;
+}
+
+export function calculateCursorFollowFocus(
+    fragment: ZoomFragment,
+    baseFocusX: number,
+    baseFocusY: number,
+    cursorFrame: ZoomCursorFollowFrame | null | undefined
+): { focusX: number; focusY: number; followAmount: number } {
+    if (!fragment.followCursor || !cursorFrame) {
+        return { focusX: baseFocusX, focusY: baseFocusY, followAmount: 0 };
+    }
+
+    const strength = clamp(fragment.followStrength ?? 0.76, 0, 1);
+    const smoothing = clamp(fragment.followSmoothing ?? 0.62, 0, 1);
+    const deadzone = Math.max(0, fragment.followDeadzone ?? 7);
+
+    const dx = cursorFrame.x - baseFocusX;
+    const dy = cursorFrame.y - baseFocusY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance <= deadzone) {
+        return { focusX: baseFocusX, focusY: baseFocusY, followAmount: 0 };
+    }
+
+    const distanceFactor = clamp((distance - deadzone) / Math.max(1, 60 - deadzone));
+    const smoothFactor = 1 - smoothing * 0.52;
+    const clickBoost = cursorFrame.clicking ? 1.08 : 1;
+    const followAmount = clamp(strength * distanceFactor * smoothFactor * clickBoost, 0, 0.96);
+
+    return {
+        focusX: clamp(lerp(baseFocusX, cursorFrame.x, followAmount), 2, 98),
+        focusY: clamp(lerp(baseFocusY, cursorFrame.y, followAmount), 2, 98),
+        followAmount,
+    };
+}
+
 export function calculateHoldDuration(fragment: ZoomFragment): number {
     const { holdDuration } = calculateTransitionWindows(fragment);
     return holdDuration;
@@ -365,6 +414,10 @@ export function createZoomFragment(
         perspective3DAngleX: 0,
         perspective3DAngleY: 0,
         cinematicMode: "smooth",
+        followCursor: false,
+        followStrength: 0.76,
+        followSmoothing: 0.62,
+        followDeadzone: 7,
     };
 }
 
