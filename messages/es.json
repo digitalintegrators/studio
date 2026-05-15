@@ -216,7 +216,7 @@
           "browserTab": "Pestaña de Brave",
           "window": "Ventana",
           "fullscreen": "Pantalla completa",
-          "tabTitle": "openvid - Crea tomas...",
+          "tabTitle": "Studio Labs - Crea tomas...",
           "codeTitle": "RecordingSteps.tsx",
           "shareAudio": "Compartir también el audio",
           "share": "Compartir",
@@ -227,14 +227,14 @@
         "title": "Oculta las distracciones",
         "description": "Al compartir tu pantalla, tu navegador mostrará automáticamente una barra flotante avisando que la captura está activa. Haz clic en <hide>Ocultar</hide> para asegurarte de que no aparezca en tu video final.",
         "visual": {
-          "barText": "https://openvid.dev está compartiendo una ventana.",
+          "barText": "https://studio.laboratorios.digital está compartiendo una ventana.",
           "stop": "Dejar de compartir",
           "hide": "Ocultar"
         }
       },
       "step3": {
         "title": "Prepárate para la acción",
-        "description": "No hay prisa. Una vez que apruebes los permisos en el paso 1, iniciaremos una cuenta regresiva de <countdown>3 segundos</countdown>. Verás el indicador en la pestaña del navegador para que sepas exactamente cuándo empezar a hablar o mover el mouse.",
+        "description": "No hay prisa. Una vez que apruebes los permisos en el paso 1, iniciaremos una cuenta regresiva de <countdown>5 segundos</countdown>. Verás el indicador en la pestaña del navegador para que sepas exactamente cuándo empezar a hablar o mover el mouse.",
         "visual": {
           "title": "¡Cambia de pestaña!",
           "subtitle": "La grabación iniciará en la pantalla que seleccionaste."
