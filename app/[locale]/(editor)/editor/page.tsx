@@ -33,8 +33,13 @@ import { MOCKUPS } from "@/lib/mockup-data";
 import { gradientToCss, generateDefaultZoomFragments, createZoomFragment, ASPECT_RATIO_DIMENSIONS } from "@/types";
 import type { SpotlightFragment } from "@/types/spotlight.types";
 import { createSpotlightFragment, DEFAULT_SPOTLIGHT_DURATION } from "@/types/spotlight.types";
-import type { EditableMaskFragment } from "@/types/mask-fragment.types";
-import { createEditableMaskFragment, DEFAULT_MASK_FRAGMENT_DURATION } from "@/types/mask-fragment.types";
+import type { EditableMaskFragment, EditableMaskPreset } from "@/types/mask-fragment.types";
+import {
+    applyMaskPresetDefaults,
+    createEditableMaskFragment,
+    DEFAULT_MASK_FRAGMENT_DURATION,
+    MASK_PRESET_LABELS,
+} from "@/types/mask-fragment.types";
 import { ToolsSidebar } from "@/app/components/ui/editor/ToolsSidebar";
 import { MobileToolsMenu } from "@/app/components/ui/editor/MobileToolsMenu";
 import { MobileControlPanel } from "@/app/components/ui/editor/MobileControlPanel";
@@ -3190,7 +3195,9 @@ export default function Editor() {
             next.width = Math.max(4, Math.min(100, next.width));
             next.height = Math.max(4, Math.min(100, next.height));
             next.opacity = Math.max(0, Math.min(0.95, next.opacity));
-            next.blur = Math.max(0, Math.min(24, next.blur));
+            next.blur = Math.max(0, Math.min(40, next.blur));
+            next.feather = Math.max(0, Math.min(40, next.feather ?? 12));
+            next.pixelSize = Math.max(4, Math.min(32, next.pixelSize ?? 12));
 
             return next;
         }).sort((a, b) => a.startTime - b.startTime));
@@ -3203,6 +3210,31 @@ export default function Editor() {
             setSelectedMaskFragmentId(null);
         }
     }, [selectedMaskFragmentId]);
+
+    const handleDuplicateMaskFragment = useCallback((fragment: EditableMaskFragment) => {
+        const duration = Math.max(0.2, fragment.endTime - fragment.startTime);
+        const startTime = Math.min(Math.max(0, videoDuration - duration), fragment.endTime + 0.12);
+        const copy: EditableMaskFragment = {
+            ...fragment,
+            id: `mask-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+            startTime,
+            endTime: Math.min(videoDuration, startTime + duration),
+            label: `${fragment.label ?? "Máscara"} copy`,
+        };
+
+        setMaskFragments((prev) => [...prev, copy].sort((a, b) => a.startTime - b.startTime));
+        setSelectedMaskFragmentId(copy.id);
+        setSelectedSpotlightFragmentId(null);
+        setSelectedZoomFragmentId(null);
+        setEffectInsertMode("mask");
+        setActiveTool("mask");
+
+        const targetTime = Math.max(0, copy.startTime + 0.05);
+        setCurrentTime(targetTime);
+        setScrubTime(targetTime);
+        if (videoRef.current) videoRef.current.currentTime = targetTime;
+        window.setTimeout(() => canvasRef.current?.drawFrame?.(), 0);
+    }, [videoDuration]);
 
     const selectedMaskFragment = useMemo(() =>
         maskFragments.find((fragment) => fragment.id === selectedMaskFragmentId) || null,
@@ -4004,11 +4036,41 @@ export default function Editor() {
                                     </label>
                                 </div>
 
+                                <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-2">
+                                    <div className="mb-2 text-[11px] font-medium text-white/55">Presets rápidos</div>
+                                    <div className="grid grid-cols-2 gap-1.5">
+                                        {(Object.entries(MASK_PRESET_LABELS) as Array<[EditableMaskPreset, string]>).map(([preset, label]) => (
+                                            <button
+                                                key={preset}
+                                                type="button"
+                                                onClick={() => {
+                                                    const next = applyMaskPresetDefaults(selectedMaskFragment, preset);
+                                                    handleUpdateMaskFragment(selectedMaskFragment.id, {
+                                                        preset: next.preset,
+                                                        label: next.label,
+                                                        opacity: next.opacity,
+                                                        blur: next.blur,
+                                                        feather: next.feather,
+                                                        pixelSize: next.pixelSize,
+                                                    });
+                                                }}
+                                                className={`rounded-xl border px-2 py-1.5 text-[11px] font-semibold transition ${
+                                                    (selectedMaskFragment.preset ?? "blur") === preset
+                                                        ? "border-fuchsia-300/50 bg-fuchsia-400/15 text-fuchsia-100"
+                                                        : "border-white/10 bg-black/20 text-white/55 hover:bg-white/10 hover:text-white"
+                                                }`}
+                                            >
+                                                {label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
                                 <label className="block">
                                     <span className="mb-1 block text-[11px] font-medium text-white/55">Opacidad</span>
                                     <input
                                         type="range"
-                                        min={0.1}
+                                        min={0}
                                         max={0.95}
                                         step={0.01}
                                         value={selectedMaskFragment.opacity}
@@ -4022,7 +4084,7 @@ export default function Editor() {
                                     <input
                                         type="range"
                                         min={0}
-                                        max={24}
+                                        max={40}
                                         step={0.5}
                                         value={selectedMaskFragment.blur}
                                         onChange={(event) => handleUpdateMaskFragment(selectedMaskFragment.id, { blur: Number(event.target.value) })}
@@ -4030,25 +4092,38 @@ export default function Editor() {
                                     />
                                 </label>
 
+                                <label className="block">
+                                    <span className="mb-1 block text-[11px] font-medium text-white/55">Feather</span>
+                                    <input
+                                        type="range"
+                                        min={0}
+                                        max={40}
+                                        step={1}
+                                        value={selectedMaskFragment.feather ?? 12}
+                                        onChange={(event) => handleUpdateMaskFragment(selectedMaskFragment.id, { feather: Number(event.target.value) })}
+                                        className="w-full accent-fuchsia-400"
+                                    />
+                                </label>
+
+                                {(selectedMaskFragment.preset ?? "blur") === "pixelate" && (
+                                    <label className="block">
+                                        <span className="mb-1 block text-[11px] font-medium text-white/55">Tamaño pixel</span>
+                                        <input
+                                            type="range"
+                                            min={4}
+                                            max={32}
+                                            step={1}
+                                            value={selectedMaskFragment.pixelSize ?? 12}
+                                            onChange={(event) => handleUpdateMaskFragment(selectedMaskFragment.id, { pixelSize: Number(event.target.value) })}
+                                            className="w-full accent-fuchsia-400"
+                                        />
+                                    </label>
+                                )}
+
                                 <div className="flex items-center justify-between gap-2 pt-1">
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            const duration = selectedMaskFragment.endTime - selectedMaskFragment.startTime;
-                                            const copy = {
-                                                ...selectedMaskFragment,
-                                                id: `mask-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-                                                startTime: Math.min(videoDuration - 0.2, selectedMaskFragment.endTime),
-                                                endTime: Math.min(videoDuration, selectedMaskFragment.endTime + duration),
-                                                label: `${selectedMaskFragment.label ?? "Máscara"} copy`,
-                                            };
-
-                                            setMaskFragments((prev) => [...prev, copy].sort((a, b) => a.startTime - b.startTime));
-                                            setSelectedMaskFragmentId(copy.id);
-                                            setSelectedSpotlightFragmentId(null);
-                                            setEffectInsertMode("mask");
-                                            setActiveTool("mask");
-                                        }}
+                                        onClick={() => handleDuplicateMaskFragment(selectedMaskFragment)}
                                         className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/75 transition hover:bg-white/10"
                                     >
                                         Duplicar
@@ -4133,6 +4208,7 @@ export default function Editor() {
                                     onSelectMaskFragment={handleSelectMaskFragment}
                                     onAddMaskFragment={handleAddMaskFragment}
                                     onUpdateMaskFragment={handleUpdateMaskFragment}
+                                    onDuplicateMaskFragment={handleDuplicateMaskFragment}
                                     effectInsertMode={effectInsertMode}
                                     audioTracks={audioTracks}
                                     uploadedAudios={uploadedAudios}
