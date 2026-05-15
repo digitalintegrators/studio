@@ -15,6 +15,7 @@ interface SpotlightFragmentTrackItemProps {
   videoDuration: number;
   currentTime: number;
   otherFragments: SpotlightFragment[];
+  snapTimes?: number[];
   onSelect: () => void;
   onUpdate: (updates: Partial<SpotlightFragment>) => void;
   onDragStateChange?: (dragging: boolean) => void;
@@ -46,6 +47,7 @@ export function SpotlightFragmentTrackItem({
   videoDuration,
   currentTime,
   otherFragments,
+  snapTimes = [],
   onSelect,
   onUpdate,
   onDragStateChange,
@@ -74,14 +76,14 @@ export function SpotlightFragmentTrackItem({
   );
 
   const snapTargets = useMemo(() => {
-    const targets = [0, videoDuration, currentTime];
+    const targets = [0, videoDuration, currentTime, ...snapTimes];
 
     otherFragments.forEach((item) => {
       targets.push(item.startTime, item.endTime);
     });
 
     return targets.filter((target) => Number.isFinite(target));
-  }, [currentTime, otherFragments, videoDuration]);
+  }, [currentTime, otherFragments, snapTimes, videoDuration]);
 
   useEffect(() => {
     if (isDragging || isResizing) return;
