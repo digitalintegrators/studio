@@ -33,6 +33,7 @@ type TimelineProps = BaseTimelineProps & {
     onSelectMaskFragment?: (fragmentId: string | null) => void;
     onAddMaskFragment?: (startTime: number) => void;
     onUpdateMaskFragment?: (fragmentId: string, updates: Partial<EditableMaskFragment>) => void;
+    onDuplicateMaskFragment?: (fragment: EditableMaskFragment) => void;
     effectInsertMode?: "spotlight" | "mask";
 };
 
@@ -71,6 +72,7 @@ export function Timeline({
     onSelectMaskFragment,
     onAddMaskFragment,
     onUpdateMaskFragment,
+    onDuplicateMaskFragment,
     effectInsertMode = "mask",
     // Audio props
     audioTracks = [],
@@ -143,6 +145,24 @@ export function Timeline({
         const availableWidth = trackWidth - TRACK_PADDING;
         return availableWidth * getZoomMultiplier(zoomLevel);
     }, [trackWidth, zoomLevel]);
+
+    const effectSnapTimes = useMemo(() => {
+        const times: number[] = [0, validDuration, currentTime];
+
+        zoomFragments.forEach((fragment) => {
+            times.push(fragment.startTime, fragment.endTime);
+        });
+
+        spotlightFragments.forEach((fragment) => {
+            times.push(fragment.startTime, fragment.endTime);
+        });
+
+        maskFragments.forEach((fragment) => {
+            times.push(fragment.startTime, fragment.endTime);
+        });
+
+        return [...new Set(times.filter((time) => Number.isFinite(time)))].sort((a, b) => a - b);
+    }, [currentTime, maskFragments, spotlightFragments, validDuration, zoomFragments]);
 
     const playheadX = useMotionValue(0);
     const trimStartX = useMotionValue(0);
@@ -662,6 +682,7 @@ export function Timeline({
                                                 contentWidth={contentWidth}
                                                 videoDuration={validDuration}
                                                 otherFragments={zoomFragments.filter(f => f.id !== fragment.id)}
+                                                snapTimes={effectSnapTimes}
                                                 onSelect={() => {
                                                     onSelectZoomFragment?.(fragment.id);
                                                     onActivateZoomTool?.();
@@ -769,6 +790,7 @@ export function Timeline({
                                                 videoDuration={validDuration}
                                                 otherFragments={spotlightFragments.filter((item) => item.id !== fragment.id)}
                                                 currentTime={currentTime}
+                                                snapTimes={effectSnapTimes}
                                                 onSelect={() => onSelectSpotlightFragment?.(fragment.id)}
                                                 onUpdate={(updates) => onUpdateSpotlightFragment?.(fragment.id, updates)}
                                                 onDragStateChange={(dragging) => {
@@ -790,8 +812,10 @@ export function Timeline({
                                                 videoDuration={validDuration}
                                                 currentTime={currentTime}
                                                 otherFragments={maskFragments.filter((item) => item.id !== fragment.id)}
+                                                snapTimes={effectSnapTimes}
                                                 onSelect={() => onSelectMaskFragment?.(fragment.id)}
                                                 onUpdate={(updates) => onUpdateMaskFragment?.(fragment.id, updates)}
+                                                onDuplicate={onDuplicateMaskFragment}
                                                 onDragStateChange={(dragging) => {
                                                     setIsDraggingEffectFragment(dragging);
                                                     if (dragging) {
