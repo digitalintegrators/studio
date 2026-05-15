@@ -33,6 +33,7 @@ type ExtendedVideoCanvasProps = VideoCanvasProps & {
     cursorConfig?: CursorConfig;
     cursorData?: CursorRecordingData;
     isRecordedVideo?: boolean;
+    isPlaying?: boolean;
     spotlightFragments?: SpotlightFragment[];
     selectedSpotlightFragmentId?: string | null;
     onSelectSpotlightFragment?: (fragmentId: string | null) => void;
