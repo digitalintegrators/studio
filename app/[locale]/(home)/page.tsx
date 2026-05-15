@@ -1,6 +1,5 @@
 import { StructuredData, generateOrganizationSchema, generateWebAppSchema } from "@/app/components/seo/StructuredData";
 import { CarouselDemos } from "@/app/components/ui/CarouselDemos";
-import EditorPreview from "@/app/components/ui/EditorPreview";
 import Hero from "@/app/components/ui/Hero";
 import InteractiveRecordingSteps from "@/app/components/ui/RecordingSteps";
 import type { Metadata } from "next";
@@ -165,7 +164,7 @@ export default async function Home({ params }: Props) {
           <div className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent,rgba(3,5,11,0.75)_78%,#03050b)]" />
         </div>
 
-        <section className="relative z-10 px-6 pb-10 pt-34 sm:pb-16 sm:pt-38" aria-label="Hero section">
+        <section className="relative z-10 px-6 pb-14 pt-34 sm:pb-20 sm:pt-38" aria-label="Hero section">
           <Hero />
         </section>
 
@@ -177,10 +176,7 @@ export default async function Home({ params }: Props) {
           </div>
         </section>
 
-        <section className="relative z-10 w-full overflow-hidden pb-14 pt-6 sm:pt-12" aria-label="Editor features and demos">
-          <div className="mx-auto max-w-6xl px-6">
-            <EditorPreview />
-          </div>
+        <section className="relative z-10 w-full overflow-hidden pb-14 pt-6 sm:pt-12" aria-label="Editor demos">
           <CarouselDemos />
         </section>
 
