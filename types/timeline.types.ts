@@ -45,6 +45,7 @@ export interface TimelineProps {
     onSelectMaskFragment?: (fragmentId: string | null) => void;
     onAddMaskFragment?: (startTime: number) => void;
     onUpdateMaskFragment?: (fragmentId: string, updates: Partial<EditableMaskFragment>) => void;
+    onDuplicateMaskFragment?: (fragment: EditableMaskFragment) => void;
     effectInsertMode?: "spotlight" | "mask";
     // Audio props
     audioTracks?: AudioTrack[];
