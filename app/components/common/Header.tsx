@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { Icon } from "@iconify/react";
 import { useLocale, useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
@@ -20,14 +21,14 @@ export default function Header() {
 
   const navCopy = {
     es: {
-      recordings: "{navText.recordings}",
+      recordings: "Mis grabaciones",
       features: "Características",
-      preview: "{navText.preview}",
+      preview: "Vista previa",
       homeAria: "Studio - Ir al inicio",
     },
     en: {
       recordings: "My recordings",
-      features: "{navText.features}",
+      features: "Features",
       preview: "Preview",
       homeAria: "Studio - Go home",
     },
@@ -135,20 +136,15 @@ export default function Header() {
               className="group relative z-10 flex items-center gap-2.5"
               aria-label={navText.homeAria}
             >
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#3c83f6]/35 bg-[#3c83f6]/12 shadow-[0_0_34px_rgba(60,131,246,0.22)] transition group-hover:border-[#7df0f8]/45 group-hover:bg-[#3c83f6]/18">
-                <Icon
-                  icon="solar:play-circle-bold"
-                  className="h-5 w-5 text-[#9bdcff]"
-                  aria-hidden="true"
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#3c83f6]/30 bg-[#3c83f6]/10 shadow-[0_0_38px_rgba(60,131,246,0.24)] transition group-hover:border-[#7df0f8]/45 group-hover:bg-[#3c83f6]/18">
+                <Image
+                  src="/svg/logo-labs.svg"
+                  alt="Studio Labs"
+                  width={30}
+                  height={30}
+                  className="h-8 w-8 object-contain"
+                  priority
                 />
-              </div>
-              <div className="hidden flex-col leading-none sm:flex">
-                <span className="text-sm font-black tracking-[-0.03em] text-white">
-                  Studio
-                </span>
-                <span className="mt-1 text-[9px] font-bold uppercase tracking-[0.24em] text-[#7df0f8]/50">
-                  Labs
-                </span>
               </div>
             </Link>
 
@@ -166,13 +162,13 @@ export default function Header() {
                 href="#features"
                 className="rounded-full px-3 py-1.5 transition hover:bg-white/10 hover:text-white"
               >
-                Features
+                {navText.features}
               </a>
               <a
                 href="#preview"
                 className="rounded-full px-3 py-1.5 transition hover:bg-white/10 hover:text-white"
               >
-                Preview
+                {navText.preview}
               </a>
             </nav>
 
