@@ -18,7 +18,7 @@ import { clearAllThumbnailCache } from "@/lib/thumbnail-cache";
 import { addVideoToLibrary, addVideoToLibraryWithMetadata, getLibraryVideoCount, getLibraryVideo, findExistingVideo } from "@/lib/videos-library";
 import { calculateTotalDuration, findNextClipPosition, getClipAtTime, type VideoTrackClip } from "@/types/video-track.types";
 import type { ExportQuality, Tool, BackgroundTab, VideoCanvasHandle, BackgroundColorConfig, AspectRatio, CropArea, ZoomFragment, ImageExportFormat } from "@/types";
-import type { AudioTrack } from "@/types/audio.types";
+import type { AudioTrack, UploadedAudio } from "@/types/audio.types";
 import { MAX_AUDIO_TRACKS } from "@/types/audio.types";
 import type { TrimRange } from "@/types/timeline.types";
 import type { MockupConfig } from "@/types/mockup.types";
@@ -171,6 +171,236 @@ function saveStoredMaskFragments(videoId: string | null, fragments: EditableMask
     } catch (error) {
         console.warn("Failed to save mask fragments:", error);
     }
+}
+
+
+const ZOOM_STORAGE_PREFIX = "openvid-zoom-fragments";
+const AUDIO_STORAGE_PREFIX = "openvid-audio-state";
+
+type StoredUploadedAudio = Omit<UploadedAudio, "url">;
+
+type StoredAudioEditorState = {
+    audioTracks: AudioTrack[];
+    uploadedAudios: StoredUploadedAudio[];
+    muteOriginalAudio: boolean;
+    masterVolume: number;
+};
+
+function getZoomStorageKey(videoId: string | null): string | null {
+    if (!videoId) return null;
+    return `${ZOOM_STORAGE_PREFIX}:${videoId}`;
+}
+
+function getAudioStorageKey(videoId: string | null): string | null {
+    if (!videoId) return null;
+    return `${AUDIO_STORAGE_PREFIX}:${videoId}`;
+}
+
+function loadStoredZoomFragments(videoId: string | null): ZoomFragment[] | null {
+    if (typeof window === "undefined") return null;
+
+    const key = getZoomStorageKey(videoId);
+    if (!key) return null;
+
+    try {
+        const raw = window.localStorage.getItem(key);
+        if (!raw) return null;
+
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return null;
+
+        const fragments = parsed.filter((fragment): fragment is ZoomFragment => {
+            return (
+                fragment &&
+                typeof fragment.id === "string" &&
+                typeof fragment.startTime === "number" &&
+                typeof fragment.endTime === "number" &&
+                typeof fragment.zoomLevel === "number" &&
+                typeof fragment.focusX === "number" &&
+                typeof fragment.focusY === "number"
+            );
+        });
+
+        return fragments.length > 0 ? fragments : null;
+    } catch (error) {
+        console.warn("Failed to load zoom fragments:", error);
+        return null;
+    }
+}
+
+function saveStoredZoomFragments(videoId: string | null, fragments: ZoomFragment[]): void {
+    if (typeof window === "undefined") return;
+
+    const key = getZoomStorageKey(videoId);
+    if (!key) return;
+
+    try {
+        if (fragments.length === 0) {
+            window.localStorage.removeItem(key);
+            return;
+        }
+
+        window.localStorage.setItem(key, JSON.stringify(fragments));
+    } catch (error) {
+        console.warn("Failed to save zoom fragments:", error);
+    }
+}
+
+
+function openEditorAudioDatabase(): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open("studio-editor-audio-cache", 1);
+
+        request.onupgradeneeded = () => {
+            const db = request.result;
+            if (!db.objectStoreNames.contains("audioBlobs")) {
+                db.createObjectStore("audioBlobs", { keyPath: "key" });
+            }
+        };
+
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+function getStoredAudioBlobKey(videoId: string, audioId: string): string {
+    return `${videoId}:${audioId}`;
+}
+
+async function saveStoredAudioBlob(videoId: string | null, audioId: string, file: File): Promise<void> {
+    if (!videoId || typeof indexedDB === "undefined") return;
+
+    try {
+        const db = await openEditorAudioDatabase();
+        await new Promise<void>((resolve, reject) => {
+            const transaction = db.transaction("audioBlobs", "readwrite");
+            transaction.objectStore("audioBlobs").put({
+                key: getStoredAudioBlobKey(videoId, audioId),
+                blob: file,
+            });
+            transaction.oncomplete = () => resolve();
+            transaction.onerror = () => reject(transaction.error);
+        });
+        db.close();
+    } catch (error) {
+        console.warn("Failed to persist audio blob:", error);
+    }
+}
+
+async function loadStoredAudioBlob(videoId: string, audioId: string): Promise<Blob | null> {
+    if (typeof indexedDB === "undefined") return null;
+
+    try {
+        const db = await openEditorAudioDatabase();
+        const result = await new Promise<{ blob?: Blob } | undefined>((resolve, reject) => {
+            const transaction = db.transaction("audioBlobs", "readonly");
+            const request = transaction.objectStore("audioBlobs").get(getStoredAudioBlobKey(videoId, audioId));
+            request.onsuccess = () => resolve(request.result as { blob?: Blob } | undefined);
+            request.onerror = () => reject(request.error);
+        });
+        db.close();
+        return result?.blob ?? null;
+    } catch (error) {
+        console.warn("Failed to load persisted audio blob:", error);
+        return null;
+    }
+}
+
+async function restoreStoredUploadedAudios(videoId: string | null, audios: StoredUploadedAudio[]): Promise<UploadedAudio[]> {
+    if (!videoId || audios.length === 0) return [];
+
+    const restored = await Promise.all(
+        audios.map(async (audio) => {
+            const blob = await loadStoredAudioBlob(videoId, audio.id);
+            if (!blob) return null;
+
+            return {
+                ...audio,
+                url: URL.createObjectURL(blob),
+            } satisfies UploadedAudio;
+        })
+    );
+
+    return restored.filter((audio): audio is UploadedAudio => audio !== null);
+}
+
+function loadStoredAudioEditorState(videoId: string | null): StoredAudioEditorState | null {
+    if (typeof window === "undefined") return null;
+
+    const key = getAudioStorageKey(videoId);
+    if (!key) return null;
+
+    try {
+        const raw = window.localStorage.getItem(key);
+        if (!raw) return null;
+
+        const parsed = JSON.parse(raw) as Partial<StoredAudioEditorState>;
+        if (!parsed || !Array.isArray(parsed.audioTracks)) return null;
+
+        const audioTracks = parsed.audioTracks.filter((track): track is AudioTrack => {
+            return (
+                track &&
+                typeof track.id === "string" &&
+                typeof track.audioId === "string" &&
+                typeof track.name === "string" &&
+                typeof track.startTime === "number" &&
+                typeof track.duration === "number" &&
+                typeof track.volume === "number" &&
+                typeof track.loop === "boolean"
+            );
+        });
+
+        const uploadedAudios = Array.isArray(parsed.uploadedAudios)
+            ? parsed.uploadedAudios.filter((audio): audio is StoredUploadedAudio => {
+                return (
+                    audio &&
+                    typeof audio.id === "string" &&
+                    typeof audio.name === "string" &&
+                    typeof audio.duration === "number" &&
+                    typeof audio.fileSize === "number" &&
+                    typeof audio.mimeType === "string"
+                );
+            })
+            : [];
+
+        return {
+            audioTracks,
+            uploadedAudios,
+            muteOriginalAudio: parsed.muteOriginalAudio === true,
+            masterVolume: typeof parsed.masterVolume === "number" ? Math.max(0, Math.min(1, parsed.masterVolume)) : 1,
+        };
+    } catch (error) {
+        console.warn("Failed to load audio editor state:", error);
+        return null;
+    }
+}
+
+function saveStoredAudioEditorState(videoId: string | null, state: StoredAudioEditorState): void {
+    if (typeof window === "undefined") return;
+
+    const key = getAudioStorageKey(videoId);
+    if (!key) return;
+
+    try {
+        const isDefaultAudioState =
+            state.audioTracks.length === 0 &&
+            state.uploadedAudios.length === 0 &&
+            state.muteOriginalAudio === false &&
+            state.masterVolume === 1;
+
+        if (isDefaultAudioState) {
+            window.localStorage.removeItem(key);
+            return;
+        }
+
+        window.localStorage.setItem(key, JSON.stringify(state));
+    } catch (error) {
+        console.warn("Failed to save audio editor state:", error);
+    }
+}
+
+function getStoredOrDefaultZoomFragments(videoId: string | null, duration: number): ZoomFragment[] {
+    return loadStoredZoomFragments(videoId) ?? generateDefaultZoomFragments(duration);
 }
 
 export default function Editor() {
@@ -363,6 +593,12 @@ export default function Editor() {
     useEffect(() => {
         if (!videoId) return;
 
+        saveStoredZoomFragments(videoId, zoomFragments);
+    }, [videoId, zoomFragments]);
+
+    useEffect(() => {
+        if (!videoId) return;
+
         saveStoredSpotlightFragments(videoId, spotlightFragments);
     }, [videoId, spotlightFragments]);
 
@@ -381,13 +617,24 @@ export default function Editor() {
     const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
 
     // Audio state
-    const [uploadedAudios, setUploadedAudios] = useState<import("@/types/audio.types").UploadedAudio[]>([]);
+    const [uploadedAudios, setUploadedAudios] = useState<UploadedAudio[]>([]);
     const [audioTracks, setAudioTracks] = useState<import("@/types/audio.types").AudioTrack[]>([]);
     const [muteOriginalAudio, setMuteOriginalAudio] = useState<boolean>(false);
     const [masterVolume, setMasterVolume] = useState<number>(1);
     const [selectedAudioTrackId, setSelectedAudioTrackId] = useState<string | null>(null);
     // Whether the currently loaded source video file contains an audio stream
     const [videoHasAudioTrack, setVideoHasAudioTrack] = useState<boolean>(true);
+
+    useEffect(() => {
+        if (!videoId) return;
+
+        saveStoredAudioEditorState(videoId, {
+            audioTracks,
+            uploadedAudios: uploadedAudios.map(({ url: _url, ...audio }) => audio),
+            muteOriginalAudio,
+            masterVolume,
+        });
+    }, [audioTracks, masterVolume, muteOriginalAudio, uploadedAudios, videoId]);
 
     const [isRecordedVideo, setIsRecordedVideo] = useState<boolean>(false);
     const [cursorConfig, setCursorConfig] =
@@ -1088,6 +1335,7 @@ export default function Editor() {
                 trimRange,
                 zoomFragments,
                 spotlightFragments,
+                maskFragments,
                 mockupId,
                 mockupConfig,
                 canvasElements,
@@ -1112,7 +1360,7 @@ export default function Editor() {
         backgroundTab, selectedWallpaper, backgroundBlur, padding,
         roundedCorners, shadows, selectedImageUrl, backgroundColorConfig,
         aspectRatio, customDimensions, cropArea, trimRange,
-        zoomFragments, spotlightFragments, mockupId, mockupConfig, canvasElements,
+        zoomFragments, spotlightFragments, maskFragments, mockupId, mockupConfig, canvasElements,
         audioTracks, muteOriginalAudio, masterVolume, cameraConfig,
         videoTransform, cursorConfig, imageTransform, apply3DToBackground, imageMaskConfig, videoMaskConfig,
         setEditorState
@@ -1134,6 +1382,7 @@ export default function Editor() {
         setTrimRange(editorState.trimRange);
         setZoomFragments(editorState.zoomFragments);
         setSpotlightFragments(editorState.spotlightFragments ?? []);
+        setMaskFragments(editorState.maskFragments ?? []);
         setMockupId(editorState.mockupId);
         setMockupConfig(editorState.mockupConfig);
         setCanvasElements(editorState.canvasElements);
@@ -1263,7 +1512,7 @@ export default function Editor() {
             );
         });
 
-        const newAudio: import("@/types/audio.types").UploadedAudio = {
+        const newAudio: UploadedAudio = {
             id: `audio-${Date.now()}-${Math.random()
                 .toString(36)
                 .substring(2, 9)}`,
@@ -1275,6 +1524,7 @@ export default function Editor() {
         };
 
         setUploadedAudios((prev) => [...prev, newAudio]);
+        void saveStoredAudioBlob(videoId, newAudio.id, file);
 
         const lastTrackEnd = audioTracks.reduce(
             (max, track) => Math.max(max, track.startTime + track.duration),
@@ -1307,7 +1557,7 @@ export default function Editor() {
         console.error("Error uploading audio:", error);
         alert("Error al subir el audio. Por favor intenta de nuevo.");
     }
-}, [audioTracks]);
+}, [audioTracks, videoId]);
 
     const handleAudioDelete = useCallback((audioId: string) => {
         setUploadedAudios(prev => {
@@ -1665,12 +1915,23 @@ export default function Editor() {
             setVideoClips([newClip]);
             setSelectedVideoClipId(newClip.id);
 
-            const defaultFragments = generateDefaultZoomFragments(uploadedData.duration);
-            setZoomFragments(defaultFragments);
+            setZoomFragments(getStoredOrDefaultZoomFragments(uploadedData.videoId, uploadedData.duration));
             setSpotlightFragments(loadStoredSpotlightFragments(uploadedData.videoId));
             setSelectedSpotlightFragmentId(null);
             setMaskFragments(loadStoredMaskFragments(uploadedData.videoId));
             setSelectedMaskFragmentId(null);
+
+            const storedAudioState = loadStoredAudioEditorState(uploadedData.videoId);
+            if (storedAudioState) {
+                setAudioTracks(storedAudioState.audioTracks);
+                setMuteOriginalAudio(storedAudioState.muteOriginalAudio);
+                setMasterVolume(storedAudioState.masterVolume);
+                void restoreStoredUploadedAudios(uploadedData.videoId, storedAudioState.uploadedAudios).then(setUploadedAudios);
+            } else {
+                setAudioTracks([]);
+                setUploadedAudios([]);
+                setMasterVolume(1);
+            }
 
             setCurrentTime(0);
             setIsPlaying(false);
@@ -1746,12 +2007,23 @@ export default function Editor() {
                     };
                     video.src = metadataUrl;
 
-                    const defaultFragments = generateDefaultZoomFragments(duration);
-                    setZoomFragments(defaultFragments);
+                    setZoomFragments(getStoredOrDefaultZoomFragments(videoId, duration));
                     setSpotlightFragments(loadStoredSpotlightFragments(videoId));
                     setSelectedSpotlightFragmentId(null);
                     setMaskFragments(loadStoredMaskFragments(videoId));
                     setSelectedMaskFragmentId(null);
+
+            const storedAudioState = loadStoredAudioEditorState(videoId);
+            if (storedAudioState) {
+                setAudioTracks(storedAudioState.audioTracks);
+                setMuteOriginalAudio(storedAudioState.muteOriginalAudio);
+                setMasterVolume(storedAudioState.masterVolume);
+                void restoreStoredUploadedAudios(videoId, storedAudioState.uploadedAudios).then(setUploadedAudios);
+            } else {
+                setAudioTracks([]);
+                setUploadedAudios([]);
+                setMasterVolume(1);
+            }
 
                     setCurrentTime(0);
                     setIsPlaying(false);
@@ -1986,12 +2258,23 @@ export default function Editor() {
                         }
                         setVideoDuration(videoToLoad.duration);
                         setTrimRange({ start: 0, end: videoToLoad.duration });
-                        const defaultFragments = generateDefaultZoomFragments(videoToLoad.duration);
-                        setZoomFragments(defaultFragments);
+                        setZoomFragments(getStoredOrDefaultZoomFragments(videoToLoad.videoId, videoToLoad.duration));
                         setSpotlightFragments(loadStoredSpotlightFragments(videoToLoad.videoId));
                         setSelectedSpotlightFragmentId(null);
                         setMaskFragments(loadStoredMaskFragments(videoToLoad.videoId));
                         setSelectedMaskFragmentId(null);
+
+            const storedAudioState = loadStoredAudioEditorState(videoToLoad.videoId);
+            if (storedAudioState) {
+                setAudioTracks(storedAudioState.audioTracks);
+                setMuteOriginalAudio(storedAudioState.muteOriginalAudio);
+                setMasterVolume(storedAudioState.masterVolume);
+                void restoreStoredUploadedAudios(videoToLoad.videoId, storedAudioState.uploadedAudios).then(setUploadedAudios);
+            } else {
+                setAudioTracks([]);
+                setUploadedAudios([]);
+                setMasterVolume(1);
+            }
 
                         if ('aspectRatio' in videoToLoad) {
                             setAspectRatio(videoToLoad.aspectRatio || "auto");
@@ -2788,8 +3071,15 @@ export default function Editor() {
 
         const newFragment = createSpotlightFragment(safeStart, duration);
 
-        setSpotlightFragments((prev) => [...prev, newFragment].sort((a, b) => a.startTime - b.startTime));
-        setSelectedSpotlightFragmentId(newFragment.id);
+        setSpotlightFragments((prev) => {
+            const labeledFragment = {
+                ...newFragment,
+                label: `Spotlight ${prev.length + 1}`,
+            };
+
+            setSelectedSpotlightFragmentId(labeledFragment.id);
+            return [...prev, labeledFragment].sort((a, b) => a.startTime - b.startTime);
+        });
         setSelectedMaskFragmentId(null);
         setSelectedZoomFragmentId(null);
         setEffectInsertMode("spotlight");
@@ -2859,8 +3149,15 @@ export default function Editor() {
 
         const newFragment = createEditableMaskFragment(safeStart, duration);
 
-        setMaskFragments((prev) => [...prev, newFragment].sort((a, b) => a.startTime - b.startTime));
-        setSelectedMaskFragmentId(newFragment.id);
+        setMaskFragments((prev) => {
+            const labeledFragment = {
+                ...newFragment,
+                label: `Máscara ${prev.length + 1}`,
+            };
+
+            setSelectedMaskFragmentId(labeledFragment.id);
+            return [...prev, labeledFragment].sort((a, b) => a.startTime - b.startTime);
+        });
         setSelectedSpotlightFragmentId(null);
         setSelectedZoomFragmentId(null);
         setEffectInsertMode("mask");
@@ -3011,6 +3308,12 @@ export default function Editor() {
                 return;
             }
 
+            if ((e.key === "Delete" || e.key === "Backspace") && selectedMaskFragmentId) {
+                e.preventDefault();
+                handleDeleteMaskFragment(selectedMaskFragmentId);
+                return;
+            }
+
             if (e.key === "Escape") {
                 e.preventDefault();
                 if (textToolActive) {
@@ -3025,6 +3328,10 @@ export default function Editor() {
                     setSelectedAudioTrackId(null);
                 } else if (selectedZoomFragmentId) {
                     setSelectedZoomFragmentId(null);
+                } else if (selectedSpotlightFragmentId) {
+                    setSelectedSpotlightFragmentId(null);
+                } else if (selectedMaskFragmentId) {
+                    setSelectedMaskFragmentId(null);
                 }
             }
 
@@ -3032,7 +3339,7 @@ export default function Editor() {
 
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
-    }, [selectedElementId, selectedZoomFragmentId, selectedSpotlightFragmentId, selectedAudioTrackId, selectedVideoClipId, deleteCanvasElement, handleDeleteZoomFragment, handleDeleteSpotlightFragment, handleDeleteAudioTrack, handleDeleteVideoClip, copySelectedElement, pasteElement, isPhotoMode, copiedElement, textToolActive]);
+    }, [selectedElementId, selectedZoomFragmentId, selectedSpotlightFragmentId, selectedMaskFragmentId, selectedAudioTrackId, selectedVideoClipId, deleteCanvasElement, handleDeleteZoomFragment, handleDeleteSpotlightFragment, handleDeleteMaskFragment, handleDeleteAudioTrack, handleDeleteVideoClip, copySelectedElement, pasteElement, isPhotoMode, copiedElement, textToolActive]);
 
     useEffect(() => {
         const checkMobile = () => {
@@ -3511,10 +3818,14 @@ export default function Editor() {
                                                 id: `spotlight-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
                                                 startTime: Math.min(videoDuration - 0.2, selectedSpotlightFragment.endTime),
                                                 endTime: Math.min(videoDuration, selectedSpotlightFragment.endTime + duration),
+                                                label: `${selectedSpotlightFragment.label ?? "Spotlight"} copy`,
                                             };
 
                                             setSpotlightFragments((prev) => [...prev, copy].sort((a, b) => a.startTime - b.startTime));
                                             setSelectedSpotlightFragmentId(copy.id);
+                                            setSelectedMaskFragmentId(null);
+                                            setEffectInsertMode("spotlight");
+                                            setActiveTool("spotlight");
                                         }}
                                         className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/75 transition hover:bg-white/10"
                                     >
@@ -3729,11 +4040,14 @@ export default function Editor() {
                                                 id: `mask-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
                                                 startTime: Math.min(videoDuration - 0.2, selectedMaskFragment.endTime),
                                                 endTime: Math.min(videoDuration, selectedMaskFragment.endTime + duration),
+                                                label: `${selectedMaskFragment.label ?? "Máscara"} copy`,
                                             };
 
                                             setMaskFragments((prev) => [...prev, copy].sort((a, b) => a.startTime - b.startTime));
                                             setSelectedMaskFragmentId(copy.id);
                                             setSelectedSpotlightFragmentId(null);
+                                            setEffectInsertMode("mask");
+                                            setActiveTool("mask");
                                         }}
                                         className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/75 transition hover:bg-white/10"
                                     >
