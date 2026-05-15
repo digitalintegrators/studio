@@ -107,14 +107,14 @@ export function MobileMenu() {
                 className="flex items-center gap-2"
               >
                 <Image
-                  src="/svg/logo-openvid.svg"
+                  src="/svg/logo-labs.svg"
                   alt="Logo"
                   width={32}
                   height={32}
                 />
                 <Image
                   src="/svg/openvid.svg"
-                  alt="OpenVid"
+                  alt="Studio Labs"
                   width={80}
                   height={20}
                 />
