@@ -30,7 +30,7 @@ export default function Header() {
   }, []);
 
   useEffect(() => {
-    const handleScroll = () => setIsScrolled(window.scrollY > 18);
+    const handleScroll = () => setIsScrolled(window.scrollY > 16);
     handleScroll();
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
@@ -71,45 +71,47 @@ export default function Header() {
     <>
       <header
         className={cn(
-          "fixed left-0 top-0 z-50 w-full transition-all duration-300",
+          "fixed left-0 top-0 z-50 w-full transition-all duration-500",
           isScrolled ? "py-3" : "py-5"
         )}
       >
         <div className="mx-auto max-w-6xl px-3 sm:px-6">
           <div
             className={cn(
-              "flex h-14 items-center justify-between rounded-2xl border px-3 transition-all duration-300 sm:px-4",
+              "relative flex h-14 items-center justify-between overflow-hidden rounded-[1.35rem] border px-3 transition-all duration-500 sm:px-4",
               isScrolled
-                ? "border-white/10 bg-[#070a12]/78 shadow-[0_18px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl"
-                : "border-white/8 bg-white/[0.025] backdrop-blur-md"
+                ? "border-white/12 bg-[#07101d]/82 shadow-[0_18px_90px_rgba(0,0,0,0.45)] backdrop-blur-2xl"
+                : "border-white/10 bg-white/[0.035] shadow-[0_10px_55px_rgba(0,0,0,0.2)] backdrop-blur-xl"
             )}
           >
-            <Link href="/" className="group flex items-center gap-2" aria-label="Studio - Ir al inicio">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-cyan-300/25 bg-cyan-300/10 shadow-[0_0_30px_rgba(34,211,238,0.14)] transition group-hover:border-cyan-300/45 group-hover:bg-cyan-300/15">
-                <Icon icon="solar:play-circle-bold" className="h-5 w-5 text-cyan-200" aria-hidden="true" />
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_0%,rgba(60,131,246,0.18),transparent_30%),radial-gradient(circle_at_88%_10%,rgba(125,240,248,0.10),transparent_24%)]" />
+
+            <Link href="/" className="group relative z-10 flex items-center gap-2.5" aria-label="Studio - Ir al inicio">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#3c83f6]/35 bg-[#3c83f6]/12 shadow-[0_0_34px_rgba(60,131,246,0.22)] transition group-hover:border-[#7df0f8]/45 group-hover:bg-[#3c83f6]/18">
+                <Icon icon="solar:play-circle-bold" className="h-5 w-5 text-[#9bdcff]" aria-hidden="true" />
               </div>
               <div className="hidden flex-col leading-none sm:flex">
-                <span className="text-sm font-black tracking-tight text-white">Studio</span>
-                <span className="mt-1 text-[9px] font-bold uppercase tracking-[0.22em] text-cyan-200/45">Labs</span>
+                <span className="text-sm font-black tracking-[-0.03em] text-white">Studio</span>
+                <span className="mt-1 text-[9px] font-bold uppercase tracking-[0.24em] text-[#7df0f8]/50">Labs</span>
               </div>
             </Link>
 
-            <nav className="hidden items-center gap-1 rounded-full border border-white/8 bg-black/15 p-1 text-xs font-bold text-white/55 md:flex" aria-label="Main navigation">
-              <Link href="/recordings" className="rounded-full px-3 py-1.5 transition hover:bg-white/8 hover:text-white">
+            <nav className="relative z-10 hidden items-center gap-1 rounded-full border border-white/10 bg-black/20 p-1 text-xs font-bold text-white/55 md:flex" aria-label="Main navigation">
+              <Link href="/recordings" className="rounded-full px-3 py-1.5 transition hover:bg-white/10 hover:text-white">
                 Mis grabaciones
               </Link>
-              <a href="#features" className="rounded-full px-3 py-1.5 transition hover:bg-white/8 hover:text-white">
+              <a href="#features" className="rounded-full px-3 py-1.5 transition hover:bg-white/10 hover:text-white">
                 Features
               </a>
-              <a href="#docs" className="rounded-full px-3 py-1.5 transition hover:bg-white/8 hover:text-white">
-                Docs
+              <a href="#preview" className="rounded-full px-3 py-1.5 transition hover:bg-white/10 hover:text-white">
+                Preview
               </a>
             </nav>
 
-            <div className="flex items-center gap-2">
+            <div className="relative z-10 flex items-center gap-2">
               <Link
                 href="/recordings"
-                className="hidden items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-white/75 transition hover:border-cyan-300/25 hover:bg-cyan-300/10 hover:text-cyan-100 lg:flex"
+                className="hidden items-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] px-3 py-2 text-xs font-bold text-white/75 transition hover:border-[#7df0f8]/30 hover:bg-[#3c83f6]/12 hover:text-[#bfeeff] lg:flex"
               >
                 <Icon icon="material-symbols:video-library-outline-rounded" className="h-4 w-4" aria-hidden="true" />
                 Mis grabaciones
@@ -122,17 +124,12 @@ export default function Header() {
                 aria-label={isRecording ? tRecording("step4.visual.stop") : t("screen")}
                 aria-pressed={isRecording}
                 className={cn(
-                  "hidden h-10 rounded-xl border-white/10 bg-white text-xs font-black text-[#07111f] shadow-[0_12px_45px_rgba(255,255,255,0.13)] transition hover:scale-[1.02] hover:bg-cyan-50 sm:flex",
-                  isRecording && "border-red-400/40 bg-red-500/12 text-red-200 hover:bg-red-500/15"
+                  "hidden h-10 rounded-xl border-white/10 bg-white px-3 text-xs font-black text-[#07111f] shadow-[0_14px_45px_rgba(255,255,255,0.16)] transition hover:scale-[1.02] hover:bg-[#eef9ff] sm:flex",
+                  isRecording && "border-red-400/40 bg-red-500/15 text-red-200 hover:bg-red-500/20"
                 )}
               >
                 {getButtonIcon()}
                 <span>{isRecording ? tRecording("step4.visual.stop") : t("screen")}</span>
-                {!isRecording && (
-                  <kbd className="ml-1 hidden rounded border border-black/10 bg-black/5 px-1.5 py-0.5 text-[9px] font-black uppercase text-black/55 lg:inline-flex">
-                    Alt S
-                  </kbd>
-                )}
               </Button>
 
               {!isMounted ? <div className="h-9 w-20 animate-pulse rounded-xl bg-white/8" /> : <LanguageSwitcher />}
