@@ -307,14 +307,77 @@ export function ZoomFragmentEditor({
                     })()}
                 </div>
 
+
+                <div className="space-y-3 p-3 bg-cyan-500/[0.04] border border-cyan-300/10 rounded-xl">
+                    <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                            <Icon icon="solar:cursor-bold" width="16" className="text-cyan-300/85 shrink-0" />
+                            <div className="min-w-0">
+                                <p className="text-xs font-medium text-white/85">Seguir cursor</p>
+                                <p className="text-[10px] text-white/40 truncate">Usa el cursor grabado para mover suavemente la cámara.</p>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => onUpdate({
+                                followCursor: !(fragment.followCursor ?? false),
+                                followStrength: fragment.followStrength ?? 0.76,
+                                followSmoothing: fragment.followSmoothing ?? 0.62,
+                                followDeadzone: fragment.followDeadzone ?? 7,
+                            })}
+                            className={`relative w-11 h-6 rounded-full transition-colors ${fragment.followCursor ? "bg-cyan-400" : "bg-white/15"}`}
+                        >
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${fragment.followCursor ? "translate-x-6" : "translate-x-1"}`} />
+                        </button>
+                    </div>
+
+                    {fragment.followCursor && (
+                        <div className="space-y-3 pt-3 border-t border-cyan-300/10">
+                            <SliderControl
+                                icon="solar:target-bold"
+                                label="Fuerza de seguimiento"
+                                value={Math.round((fragment.followStrength ?? 0.76) * 100)}
+                                min={0}
+                                max={100}
+                                step={1}
+                                suffix="%"
+                                onChange={(value) => onUpdate({ followStrength: value / 100 })}
+                            />
+                            <SliderControl
+                                icon="solar:wind-bold"
+                                label="Suavizado"
+                                value={Math.round((fragment.followSmoothing ?? 0.62) * 100)}
+                                min={0}
+                                max={100}
+                                step={1}
+                                suffix="%"
+                                onChange={(value) => onUpdate({ followSmoothing: value / 100 })}
+                            />
+                            <SliderControl
+                                icon="solar:minimize-square-3-bold"
+                                label="Zona muerta"
+                                value={fragment.followDeadzone ?? 7}
+                                min={0}
+                                max={24}
+                                step={1}
+                                suffix="%"
+                                onChange={(value) => onUpdate({ followDeadzone: value })}
+                            />
+                            <div className="rounded-lg border border-white/8 bg-black/20 px-3 py-2 text-[10px] leading-4 text-white/42">
+                                Funciona cuando la grabación incluye datos de cursor. Si no existen, el zoom mantiene el enfoque manual A/B.
+                            </div>
+                        </div>
+                    )}
+                </div>
+
                 
                 <div className="space-y-3 p-3 bg-white/3 border border-white/8 rounded-xl">
                     <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 min-w-0">
                             <Icon icon="solar:camera-bold" width="16" className="text-blue-300/80 shrink-0" />
                             <div className="min-w-0">
-                                <p className="text-xs font-medium text-white/85">Cinematic camera</p>
-                                <p className="text-[10px] text-white/40 truncate">Choose how this zoom enters, moves and releases.</p>
+                                <p className="text-xs font-medium text-white/85">Cámara cinematográfica</p>
+                                <p className="text-[10px] text-white/40 truncate">Define cómo entra, se mueve y sale este zoom.</p>
                             </div>
                         </div>
                         <span className="rounded-full border border-blue-400/20 bg-blue-500/10 px-2 py-0.5 text-[10px] font-mono text-blue-200">
