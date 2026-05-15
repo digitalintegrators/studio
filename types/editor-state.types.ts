@@ -7,6 +7,7 @@ import type {
     AudioTrack,
     SpotlightFragment,
 } from "@/types";
+import type { EditableMaskFragment } from "@/types/mask-fragment.types";
 
 import type { TrimRange } from "@/types/timeline.types";
 import type { MockupConfig } from "@/types/mockup.types";
@@ -41,6 +42,7 @@ export interface EditorState {
     trimRange: TrimRange;
     zoomFragments: ZoomFragment[];
     spotlightFragments: SpotlightFragment[];
+    maskFragments: EditableMaskFragment[];
     mockupId: string;
     mockupConfig: MockupConfig;
     canvasElements: CanvasElement[];
@@ -88,6 +90,7 @@ export function createInitialEditorState(
 
         zoomFragments: [],
         spotlightFragments: [],
+        maskFragments: [],
 
         mockupId: "none",
 
