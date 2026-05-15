@@ -61,7 +61,7 @@ export default function Header() {
     }
 
     if (isRecording) {
-      return <span className="h-2.5 w-2.5 animate-pulse rounded-sm bg-red-400" aria-hidden="true" />;
+      return <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-red-200 shadow-[0_0_18px_rgba(254,202,202,0.75)]" aria-hidden="true" />;
     }
 
     return <Icon icon="material-symbols:cast-outline-rounded" className="h-4 w-4" aria-hidden="true" />;
@@ -124,8 +124,8 @@ export default function Header() {
                 aria-label={isRecording ? tRecording("step4.visual.stop") : t("screen")}
                 aria-pressed={isRecording}
                 className={cn(
-                  "hidden h-10 rounded-xl border-white/10 bg-white px-3 text-xs font-black text-[#07111f] shadow-[0_14px_45px_rgba(255,255,255,0.16)] transition hover:scale-[1.02] hover:bg-[#eef9ff] sm:flex",
-                  isRecording && "border-red-400/40 bg-red-500/15 text-red-200 hover:bg-red-500/20"
+                  "hidden h-10 rounded-2xl border border-red-400/35 bg-gradient-to-b from-red-500 to-red-600 px-4 text-xs font-black text-white shadow-[0_18px_55px_rgba(239,68,68,0.36),inset_0_1px_0_rgba(255,255,255,0.24)] transition hover:scale-[1.025] hover:from-red-400 hover:to-red-600 hover:shadow-[0_22px_70px_rgba(239,68,68,0.46)] sm:flex",
+                  isRecording && "border-red-300/45 bg-red-500/18 text-red-100 hover:bg-red-500/24"
                 )}
               >
                 {getButtonIcon()}
