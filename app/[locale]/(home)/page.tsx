@@ -15,13 +15,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const metadata = {
     es: {
-      title: "Studio — Crea demos profesionales con edición cinematográfica",
+      title: "Studio — Demos cinematográficas desde el navegador",
       description:
         "Graba pantalla, cámara, micrófono y audio del sistema. Edita demos con timeline, spotlight, máscaras, zooms y exportación profesional.",
       keywords: ["editor de video", "grabar pantalla", "demos profesionales", "screen recorder", "video editor online", "spotlight", "zoom video"],
     },
     en: {
-      title: "Studio — Create cinematic product demos in your browser",
+      title: "Studio — Cinematic product demos from your browser",
       description:
         "Record screen, camera, microphone and system audio. Edit demos with timeline, spotlight, masks, zooms and professional export.",
       keywords: ["video editor", "screen recorder", "professional demos", "online video editor", "spotlight", "video zoom"],
@@ -65,37 +65,85 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 function FeatureGrid() {
   const features = [
-    { title: "Timeline premium", description: "Thumbnails, waveform y fragmentos visuales para editar rápido.", icon: "⌁" },
-    { title: "Spotlight & máscaras", description: "Resalta palabras, zonas o elementos clave del video.", icon: "◉" },
-    { title: "Zoom cinematográfico", description: "Prepara demos más claras con movimientos suaves y foco visual.", icon: "⌕" },
-    { title: "Grabación completa", description: "Pantalla, cámara, micrófono y audio del sistema desde navegador.", icon: "●" },
+    {
+      title: "Timeline visual",
+      description: "Thumbnails, waveform y fragmentos para editar sin perder contexto.",
+      icon: "⌁",
+      tone: "from-[#3c83f6]/18 to-[#7df0f8]/10",
+    },
+    {
+      title: "Spotlight & máscaras",
+      description: "Resalta palabras, botones o zonas clave con efectos editables por tiempo.",
+      icon: "◉",
+      tone: "from-amber-300/16 to-violet-300/10",
+    },
+    {
+      title: "Zoom cinematográfico",
+      description: "Guía la atención con movimientos suaves y foco visual para demos claras.",
+      icon: "⌕",
+      tone: "from-violet-300/16 to-[#3c83f6]/10",
+    },
+    {
+      title: "Grabación completa",
+      description: "Pantalla, cámara, micrófono y audio del sistema en una sola experiencia.",
+      icon: "●",
+      tone: "from-emerald-300/14 to-[#7df0f8]/10",
+    },
   ];
 
   return (
-    <section id="features" className="relative w-full py-16 sm:py-24">
+    <section id="features" className="relative z-10 w-full py-16 sm:py-24">
       <div className="mx-auto max-w-6xl px-6">
         <div className="mb-10 text-center">
-          <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-cyan-100">
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-[#9bdcff] shadow-[0_0_34px_rgba(60,131,246,0.16)]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#7df0f8]" />
             Editor visual
           </span>
-          <h2 className="mt-5 text-3xl font-semibold tracking-[-0.05em] text-white sm:text-5xl">
-            Todo lo que necesitas para una demo pulida.
+          <h2 className="mt-5 text-balance text-3xl font-semibold tracking-[-0.055em] text-white sm:text-5xl">
+            Una landing que se siente como el producto.
           </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-white/55">
-            Una experiencia optimizada para explicar productos, bugs, capacitaciones, PoCs y flujos técnicos sin herramientas pesadas.
+          <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-white/52">
+            Todo se alinea con el editor: profundidad, vidrio, azul digital, transiciones suaves y una interfaz que siempre muestra valor real.
           </p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {features.map((feature) => (
-            <article key={feature.title} className="group rounded-[1.5rem] border border-white/10 bg-white/[0.035] p-5 shadow-[0_18px_80px_rgba(0,0,0,0.22)] backdrop-blur-xl transition hover:-translate-y-1 hover:border-cyan-300/25 hover:bg-white/[0.055]">
-              <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-gradient-to-br from-cyan-300/15 to-violet-300/15 text-xl font-black text-cyan-100">
-                {feature.icon}
+            <article
+              key={feature.title}
+              className="group relative overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/[0.035] p-5 shadow-[0_18px_90px_rgba(0,0,0,0.28)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-[#7df0f8]/24 hover:bg-white/[0.055]"
+            >
+              <div className={`absolute inset-0 bg-gradient-to-br ${feature.tone} opacity-80 transition group-hover:opacity-100`} />
+              <div className="relative">
+                <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-xl font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                  {feature.icon}
+                </div>
+                <h3 className="text-lg font-bold tracking-tight text-white">{feature.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-white/50">{feature.description}</p>
               </div>
-              <h3 className="text-lg font-bold tracking-tight text-white">{feature.title}</h3>
-              <p className="mt-2 text-sm leading-6 text-white/50">{feature.description}</p>
             </article>
           ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FinalCTA() {
+  return (
+    <section className="relative z-10 pb-24 pt-8">
+      <div className="mx-auto max-w-5xl px-6">
+        <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04] p-8 text-center shadow-[0_26px_130px_rgba(0,0,0,0.5)] backdrop-blur-2xl sm:p-12">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(60,131,246,0.24),transparent_45%),radial-gradient(circle_at_20%_80%,rgba(168,85,247,0.16),transparent_35%)]" />
+          <div className="relative">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-[#7df0f8]/70">Ready for your next demo</p>
+            <h2 className="mt-4 text-balance text-4xl font-semibold tracking-[-0.06em] text-white sm:text-6xl">
+              Convierte una grabación normal en una demo que parece producida.
+            </h2>
+            <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-white/52">
+              Graba, enfoca, resalta, exporta y comparte. Todo desde una experiencia visual coherente y ligera.
+            </p>
+          </div>
         </div>
       </div>
     </section>
@@ -110,10 +158,11 @@ export default async function Home({ params }: Props) {
       <StructuredData data={generateWebAppSchema(locale as "es" | "en")} />
       <StructuredData data={generateOrganizationSchema()} />
 
-      <main className="relative min-h-screen overflow-hidden bg-[#05070d] text-white">
-        <div className="pointer-events-none fixed inset-0 z-0 opacity-70">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_-10%,rgba(59,130,246,0.22),transparent_34%),radial-gradient(circle_at_15%_20%,rgba(168,85,247,0.16),transparent_28%),linear-gradient(180deg,#05070d_0%,#070a12_45%,#030408_100%)]" />
-          <div className="absolute inset-0 opacity-[0.16] [background-image:radial-gradient(rgba(255,255,255,0.24)_1px,transparent_1px)] [background-size:26px_26px]" />
+      <main className="relative min-h-screen overflow-hidden bg-[#03050b] text-white">
+        <div className="pointer-events-none fixed inset-0 z-0">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_-12%,rgba(60,131,246,0.26),transparent_34%),radial-gradient(circle_at_13%_18%,rgba(168,85,247,0.15),transparent_28%),radial-gradient(circle_at_88%_22%,rgba(125,240,248,0.11),transparent_24%),linear-gradient(180deg,#05070d_0%,#07101d_48%,#02040a_100%)]" />
+          <div className="absolute inset-0 opacity-[0.14] [background-image:radial-gradient(rgba(255,255,255,0.25)_1px,transparent_1px)] [background-size:28px_28px]" />
+          <div className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent,rgba(3,5,11,0.75)_78%,#03050b)]" />
         </div>
 
         <section className="relative z-10 px-6 pb-10 pt-34 sm:pb-16 sm:pt-38" aria-label="Hero section">
@@ -128,12 +177,14 @@ export default async function Home({ params }: Props) {
           </div>
         </section>
 
-        <section className="relative z-10 w-full overflow-hidden pb-24 pt-6 sm:pt-12" aria-label="Editor features and demos">
+        <section className="relative z-10 w-full overflow-hidden pb-14 pt-6 sm:pt-12" aria-label="Editor features and demos">
           <div className="mx-auto max-w-6xl px-6">
             <EditorPreview />
           </div>
           <CarouselDemos />
         </section>
+
+        <FinalCTA />
       </main>
     </>
   );
