@@ -7,6 +7,24 @@ import { zoomLevelToFactor } from "@/types/zoom.types";
 
 // Minimum fragment duration in seconds
 const MIN_FRAGMENT_DURATION = 0.5;
+const SNAP_THRESHOLD_SECONDS = 0.12;
+
+function snapTime(value: number, targets: number[], disabled: boolean): number {
+    if (disabled) return value;
+
+    for (const target of targets) {
+        if (Math.abs(value - target) <= SNAP_THRESHOLD_SECONDS) {
+            return target;
+        }
+    }
+
+    return value;
+}
+
+function isShiftEvent(event: MouseEvent | TouchEvent | PointerEvent): boolean {
+    return "shiftKey" in event && Boolean(event.shiftKey);
+}
+
 
 interface ZoomFragmentTrackItemProps {
     fragment: ZoomFragment;
@@ -14,6 +32,7 @@ interface ZoomFragmentTrackItemProps {
     contentWidth: number;
     videoDuration: number;
     otherFragments: ZoomFragment[];
+    snapTimes?: number[];
     onSelect: () => void;
     onUpdate: (updates: Partial<ZoomFragment>) => void;
     onDragStateChange?: (isDragging: boolean) => void;
@@ -27,6 +46,7 @@ export function ZoomFragmentTrackItem({
     contentWidth,
     videoDuration,
     otherFragments,
+    snapTimes = [],
     onSelect,
     onUpdate,
     onDragStateChange,
@@ -77,6 +97,16 @@ export function ZoomFragmentTrackItem({
         return { minStart, maxEnd };
     }, [otherFragments, fragment.startTime, fragment.endTime, videoDuration]);
 
+    const snapTargets = useMemo(() => {
+        const targets = [0, videoDuration, ...snapTimes];
+
+        otherFragments.forEach((item) => {
+            targets.push(item.startTime, item.endTime);
+        });
+
+        return [...new Set(targets.filter((target) => Number.isFinite(target)))].sort((a, b) => a - b);
+    }, [otherFragments, snapTimes, videoDuration]);
+
     const handleDrag = useCallback((e: MouseEvent | TouchEvent | PointerEvent, info: { delta: { x: number } }) => {
         if (contentWidth === 0 || videoDuration === 0) return;
 
@@ -89,8 +119,9 @@ export function ZoomFragmentTrackItem({
         const maxX = timeToPixels(boundaries.maxEnd - duration);
         newX = Math.max(minX, Math.min(maxX, newX));
 
-        fragmentX.set(newX);
-    }, [contentWidth, videoDuration, fragmentX, fragment, boundaries, timeToPixels]);
+        const snappedStart = snapTime(pixelsToTime(newX), snapTargets, isShiftEvent(e));
+        fragmentX.set(timeToPixels(snappedStart));
+    }, [contentWidth, videoDuration, fragmentX, fragment, boundaries, timeToPixels, pixelsToTime, snapTargets]);
 
     const handleDragStart = useCallback(() => {
         setIsDragging(true);
@@ -132,9 +163,11 @@ export function ZoomFragmentTrackItem({
             newWidth = currentWidth - diff;
         }
 
-        fragmentX.set(newX);
-        fragmentWidth.set(newWidth);
-    }, [contentWidth, videoDuration, fragmentX, fragmentWidth, boundaries, timeToPixels]);
+        const currentEnd = pixelsToTime(currentX + currentWidth);
+        const snappedStart = Math.max(boundaries.minStart, Math.min(currentEnd - MIN_FRAGMENT_DURATION, snapTime(pixelsToTime(newX), snapTargets, isShiftEvent(e))));
+        fragmentX.set(timeToPixels(snappedStart));
+        fragmentWidth.set(timeToPixels(currentEnd - snappedStart));
+    }, [contentWidth, videoDuration, fragmentX, fragmentWidth, boundaries, timeToPixels, pixelsToTime, snapTargets]);
 
     const handleResizeEndDrag = useCallback((e: MouseEvent | TouchEvent | PointerEvent, info: { delta: { x: number } }) => {
         if (contentWidth === 0 || videoDuration === 0) return;
@@ -147,11 +180,13 @@ export function ZoomFragmentTrackItem({
         newWidth = Math.max(minWidth, newWidth);
 
         const currentX = fragmentX.get();
+        const currentStart = pixelsToTime(currentX);
         const maxWidth = timeToPixels(boundaries.maxEnd) - currentX;
         newWidth = Math.min(newWidth, maxWidth);
 
-        fragmentWidth.set(newWidth);
-    }, [contentWidth, videoDuration, fragmentWidth, fragmentX, boundaries, timeToPixels]);
+        const snappedEnd = Math.max(currentStart + MIN_FRAGMENT_DURATION, Math.min(boundaries.maxEnd, snapTime(pixelsToTime(currentX + newWidth), snapTargets, isShiftEvent(e))));
+        fragmentWidth.set(timeToPixels(snappedEnd - currentStart));
+    }, [contentWidth, videoDuration, fragmentWidth, fragmentX, boundaries, timeToPixels, pixelsToTime, snapTargets]);
 
     const handleResizeStart = useCallback((handle: 'start' | 'end') => {
         setIsResizing(handle);
