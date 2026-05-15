@@ -54,13 +54,13 @@ export function BrowserPermissionUI() {
                     </div>
                 </div>
                 <span className="text-[#E3E3E3] font-medium tracking-wide">
-                    openvid.dev
+                    studio.laboratorios.digital
                 </span>
             </div>
 
             <div className="flex flex-col bg-[#1E1E20] text-neutral-200">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
-                    <span className="font-medium text-[15px]">openvid.dev</span>
+                    <span className="font-medium text-[15px]">studio.laboratorios.digital</span>
                     <Icon icon="ic:round-close" className="size-5 text-neutral-400 cursor-pointer" />
                 </div>
 
