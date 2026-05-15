@@ -320,7 +320,9 @@ export const VideoCanvas = forwardRef<
     }
 
     const selectedFragment = selectedSpotlightFragmentId
-      ? spotlightFragments.find((fragment) => fragment.id === selectedSpotlightFragmentId)
+      ? spotlightFragments.find(
+          (fragment) => fragment.id === selectedSpotlightFragmentId,
+        )
       : null;
 
     if (isSpotlightEditing && selectedFragment) {
@@ -2736,6 +2738,7 @@ export const VideoCanvas = forwardRef<
                 {activeSpotlightFragment && (
                   <div
                     data-spotlight-layer
+                    data-video-canvas-effect
                     className="absolute inset-0 pointer-events-none"
                     style={{
                       zIndex: VIDEO_Z_INDEX + 150,
@@ -2759,65 +2762,71 @@ export const VideoCanvas = forwardRef<
                             : `radial-gradient(ellipse ${(activeSpotlightFragment.width / 1.65).toFixed(2)}% ${(activeSpotlightFragment.height / 1.65).toFixed(2)}% at ${activeSpotlightFragment.x}% ${activeSpotlightFragment.y}%, transparent 0%, transparent 58%, black 100%)`,
                       }}
                     />{" "}
-                    {isSpotlightEditing && activeSpotlightFragment.id === selectedSpotlightFragmentId && (
-                      <div
-                        role="button"
-                        aria-label="Mover spotlight"
-                      tabIndex={0}
-                      className="absolute border shadow-[0_0_70px_rgba(255,255,255,0.22)] pointer-events-auto cursor-move border-amber-300/95 ring-2 ring-amber-300/45"
-                      style={{
-                        left: `${activeSpotlightFragment.x}%`,
-                        top: `${activeSpotlightFragment.y}%`,
-                        width: `${activeSpotlightFragment.width}%`,
-                        height: `${activeSpotlightFragment.height}%`,
-                        transform: "translate(-50%, -50%)",
-                        borderRadius:
-                          activeSpotlightFragment.shape === "circle"
-                            ? "9999px"
-                            : activeSpotlightFragment.shape === "rounded"
-                              ? `${activeSpotlightFragment.radius ?? 18}px`
-                              : "2px",
-                        touchAction: "none",
-                      }}
-                      onPointerDown={(event) =>
-                        handleSpotlightPointerDown(
-                          event,
-                          activeSpotlightFragment,
-                          "move",
-                        )
-                      }
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onSelectSpotlightFragment?.(activeSpotlightFragment.id);
-                      }}
-                    >
-                      {" "}
-                      {activeSpotlightFragment && (
-                        <>
+                    {isSpotlightEditing &&
+                      activeSpotlightFragment.id ===
+                        selectedSpotlightFragmentId && (
+                        <div
+                          data-effect-interactive
+                          role="button"
+                          aria-label="Mover spotlight"
+                          tabIndex={0}
+                          className="absolute border shadow-[0_0_70px_rgba(255,255,255,0.22)] pointer-events-auto cursor-move border-amber-300/95 ring-2 ring-amber-300/45"
+                          style={{
+                            left: `${activeSpotlightFragment.x}%`,
+                            top: `${activeSpotlightFragment.y}%`,
+                            width: `${activeSpotlightFragment.width}%`,
+                            height: `${activeSpotlightFragment.height}%`,
+                            transform: "translate(-50%, -50%)",
+                            borderRadius:
+                              activeSpotlightFragment.shape === "circle"
+                                ? "9999px"
+                                : activeSpotlightFragment.shape === "rounded"
+                                  ? `${activeSpotlightFragment.radius ?? 18}px`
+                                  : "2px",
+                            touchAction: "none",
+                          }}
+                          onPointerDown={(event) =>
+                            handleSpotlightPointerDown(
+                              event,
+                              activeSpotlightFragment,
+                              "move",
+                            )
+                          }
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onSelectSpotlightFragment?.(
+                              activeSpotlightFragment.id,
+                            );
+                          }}
+                        >
                           {" "}
-                          <div className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/40 bg-amber-300 shadow-[0_0_18px_rgba(251,191,36,0.65)]" />{" "}
-                          <div
-                            role="button"
-                            aria-label="Redimensionar spotlight"
-                            className="absolute -bottom-2 -right-2 h-5 w-5 cursor-nwse-resize rounded-full border border-black/40 bg-amber-300 shadow-[0_0_18px_rgba(251,191,36,0.65)]"
-                            style={{ touchAction: "none" }}
-                            onPointerDown={(event) =>
-                              handleSpotlightPointerDown(
-                                event,
-                                activeSpotlightFragment,
-                                "resize",
-                              )
-                            }
-                            onClick={(event) => event.stopPropagation()}
-                          />{" "}
-                        </>
+                          {activeSpotlightFragment && (
+                            <>
+                              {" "}
+                              <div className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/40 bg-amber-300 shadow-[0_0_18px_rgba(251,191,36,0.65)]" />{" "}
+                              <div
+                                role="button"
+                                aria-label="Redimensionar spotlight"
+                                className="absolute -bottom-2 -right-2 h-5 w-5 cursor-nwse-resize rounded-full border border-black/40 bg-amber-300 shadow-[0_0_18px_rgba(251,191,36,0.65)]"
+                                style={{ touchAction: "none" }}
+                                onPointerDown={(event) =>
+                                  handleSpotlightPointerDown(
+                                    event,
+                                    activeSpotlightFragment,
+                                    "resize",
+                                  )
+                                }
+                                onClick={(event) => event.stopPropagation()}
+                              />{" "}
+                            </>
+                          )}{" "}
+                        </div>
                       )}{" "}
-                      </div>
-                    )}{" "}
                   </div>
                 )}{" "}
                 {activeMaskFragment && (
                   <div
+                    data-video-canvas-effect
                     className="absolute inset-0 pointer-events-none"
                     style={{ zIndex: VIDEO_Z_INDEX + 166 }}
                   >
@@ -2841,55 +2850,57 @@ export const VideoCanvas = forwardRef<
                       }}
                     />
 
-                    {isMaskEditing && activeMaskFragment.id === selectedMaskFragmentId && (
-                      <div
-                        role="button"
-                        aria-label="Mover máscara"
-                        tabIndex={0}
-                        className="absolute pointer-events-auto cursor-move border border-fuchsia-300/95 ring-2 ring-fuchsia-300/40 shadow-[0_0_50px_rgba(217,70,239,0.25)]"
-                        style={{
-                          left: `${activeMaskFragment.x}%`,
-                          top: `${activeMaskFragment.y}%`,
-                          width: `${activeMaskFragment.width}%`,
-                          height: `${activeMaskFragment.height}%`,
-                          transform: "translate(-50%, -50%)",
-                          borderRadius:
-                            activeMaskFragment.shape === "circle"
-                              ? "9999px"
-                              : activeMaskFragment.shape === "rounded"
-                                ? `${activeMaskFragment.radius ?? 18}px`
-                                : "2px",
-                          touchAction: "none",
-                        }}
-                        onPointerDown={(event) =>
-                          handleMaskPointerDown(
-                            event,
-                            activeMaskFragment,
-                            "move",
-                          )
-                        }
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onSelectMaskFragment?.(activeMaskFragment.id);
-                        }}
-                      >
-                        <div className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/40 bg-fuchsia-300 shadow-[0_0_18px_rgba(217,70,239,0.75)]" />
+                    {isMaskEditing &&
+                      activeMaskFragment.id === selectedMaskFragmentId && (
                         <div
+                          data-effect-interactive
                           role="button"
-                          aria-label="Redimensionar máscara"
-                          className="absolute -bottom-2 -right-2 h-5 w-5 cursor-nwse-resize rounded-full border border-black/40 bg-fuchsia-300 shadow-[0_0_18px_rgba(217,70,239,0.75)]"
-                          style={{ touchAction: "none" }}
+                          aria-label="Mover máscara"
+                          tabIndex={0}
+                          className="absolute pointer-events-auto cursor-move border border-fuchsia-300/95 ring-2 ring-fuchsia-300/40 shadow-[0_0_50px_rgba(217,70,239,0.25)]"
+                          style={{
+                            left: `${activeMaskFragment.x}%`,
+                            top: `${activeMaskFragment.y}%`,
+                            width: `${activeMaskFragment.width}%`,
+                            height: `${activeMaskFragment.height}%`,
+                            transform: "translate(-50%, -50%)",
+                            borderRadius:
+                              activeMaskFragment.shape === "circle"
+                                ? "9999px"
+                                : activeMaskFragment.shape === "rounded"
+                                  ? `${activeMaskFragment.radius ?? 18}px`
+                                  : "2px",
+                            touchAction: "none",
+                          }}
                           onPointerDown={(event) =>
                             handleMaskPointerDown(
                               event,
                               activeMaskFragment,
-                              "resize",
+                              "move",
                             )
                           }
-                          onClick={(event) => event.stopPropagation()}
-                        />
-                      </div>
-                    )}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onSelectMaskFragment?.(activeMaskFragment.id);
+                          }}
+                        >
+                          <div className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/40 bg-fuchsia-300 shadow-[0_0_18px_rgba(217,70,239,0.75)]" />
+                          <div
+                            role="button"
+                            aria-label="Redimensionar máscara"
+                            className="absolute -bottom-2 -right-2 h-5 w-5 cursor-nwse-resize rounded-full border border-black/40 bg-fuchsia-300 shadow-[0_0_18px_rgba(217,70,239,0.75)]"
+                            style={{ touchAction: "none" }}
+                            onPointerDown={(event) =>
+                              handleMaskPointerDown(
+                                event,
+                                activeMaskFragment,
+                                "resize",
+                              )
+                            }
+                            onClick={(event) => event.stopPropagation()}
+                          />
+                        </div>
+                      )}
                   </div>
                 )}
                 {shouldShowSpotlight && cursorFrame && (
