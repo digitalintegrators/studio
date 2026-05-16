@@ -65,6 +65,8 @@ import {
 } from "@/types/cursor.types";
 import type { SpotlightFragment } from "@/types/spotlight.types";
 import type { EditableMaskFragment } from "@/types/mask-fragment.types";
+import type { CaptionSegment, CaptionSettings } from "@/types/caption.types";
+import { DEFAULT_CAPTION_SETTINGS, getActiveCaptionSegment, getActiveCaptionWord } from "@/types/caption.types";
 export type { VideoCanvasHandle, VideoCanvasProps };
 type ExtendedVideoCanvasProps = VideoCanvasProps & {
   cursorConfig?: CursorConfig;
@@ -85,6 +87,10 @@ type ExtendedVideoCanvasProps = VideoCanvasProps & {
     fragmentId: string,
     updates: Partial<EditableMaskFragment>,
   ) => void;
+  captionSegments?: CaptionSegment[];
+  captionSettings?: CaptionSettings;
+  selectedCaptionSegmentId?: string | null;
+  onSelectCaptionSegment?: (segmentId: string | null) => void;
 };
 type ExtendedCursorConfig = CursorConfig & {
   spotlightEnabled?: boolean;
@@ -238,6 +244,9 @@ export const VideoCanvas = forwardRef<
   const maskFragments = props.maskFragments ?? [];
   const selectedSpotlightFragmentId = props.selectedSpotlightFragmentId ?? null;
   const selectedMaskFragmentId = props.selectedMaskFragmentId ?? null;
+  const captionSegments = props.captionSegments ?? [];
+  const captionSettings = props.captionSettings ?? DEFAULT_CAPTION_SETTINGS;
+  const selectedCaptionSegmentId = props.selectedCaptionSegmentId ?? null;
   const isPlaying = props.isPlaying ?? false;
   const isSpotlightEditing = Boolean(selectedSpotlightFragmentId) && !isPlaying;
   const isMaskEditing = Boolean(selectedMaskFragmentId) && !isPlaying;
@@ -386,6 +395,32 @@ export const VideoCanvas = forwardRef<
     selectedMaskFragmentId,
     isMaskEditing,
   ]);
+
+  const activeCaptionSegment = useMemo<CaptionSegment | null>(() => {
+    if (mediaType !== "video" || !hasMedia || !captionSettings.enabled) return null;
+
+    const selectedSegment = selectedCaptionSegmentId
+      ? captionSegments.find((segment) => segment.id === selectedCaptionSegmentId)
+      : null;
+
+    if (!isPlaying && selectedSegment) {
+      return selectedSegment;
+    }
+
+    return getActiveCaptionSegment(captionSegments, currentTime);
+  }, [
+    mediaType,
+    hasMedia,
+    captionSettings.enabled,
+    selectedCaptionSegmentId,
+    captionSegments,
+    currentTime,
+    isPlaying,
+  ]);
+
+  const activeCaptionWord = useMemo(() => {
+    return getActiveCaptionWord(activeCaptionSegment, currentTime);
+  }, [activeCaptionSegment, currentTime]);
 
   const shouldShowUnsplashOverride =
     backgroundTab === "wallpaper" && unsplashOverrideUrl !== "";
@@ -1250,6 +1285,105 @@ export const VideoCanvas = forwardRef<
       }
     }
   };
+  const wrapCaptionText = (
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    maxWidth: number,
+  ): string[] => {
+    const words = text.split(/\s+/).filter(Boolean);
+    const lines: string[] = [];
+    let line = "";
+
+    words.forEach((word) => {
+      const testLine = line ? `${line} ${word}` : word;
+      if (ctx.measureText(testLine).width > maxWidth && line) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = testLine;
+      }
+    });
+
+    if (line) lines.push(line);
+    return lines.slice(0, 3);
+  };
+
+  const drawRoundedCaptionBackground = (
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number,
+  ) => {
+    ctx.beginPath();
+    drawRoundedRect(ctx, x, y, width, height, radius);
+    ctx.fill();
+  };
+
+  const drawCaptionsToCanvas = (
+    ctx: CanvasRenderingContext2D,
+    canvasWidth: number,
+    canvasHeight: number,
+  ) => {
+    if (!activeCaptionSegment || !captionSettings.enabled) return;
+
+    const preset = captionSettings.preset ?? "cinematic";
+    const fontSize = Math.max(24, Math.min(96, captionSettings.fontSize)) * (canvasWidth / 1920);
+    const lineHeight = fontSize * 1.18;
+    const maxWidth = canvasWidth * (Math.max(35, Math.min(92, captionSettings.maxWidth)) / 100);
+    const y = canvasHeight * (Math.max(10, Math.min(92, captionSettings.positionY)) / 100);
+    const text = activeCaptionSegment.text.trim();
+    if (!text) return;
+
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `800 ${fontSize}px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+
+    const lines = wrapCaptionText(ctx, text, maxWidth);
+    const blockHeight = lines.length * lineHeight;
+    const widest = Math.min(maxWidth, Math.max(...lines.map((line) => ctx.measureText(line).width), fontSize * 4));
+    const paddingX = fontSize * 0.72;
+    const paddingY = fontSize * 0.38;
+    const boxX = (canvasWidth - widest) / 2 - paddingX;
+    const boxY = y - blockHeight / 2 - paddingY;
+    const boxWidth = widest + paddingX * 2;
+    const boxHeight = blockHeight + paddingY * 2;
+
+    if (preset !== "minimal") {
+      ctx.fillStyle = `rgba(5, 8, 18, ${Math.max(0, Math.min(0.78, captionSettings.backgroundOpacity))})`;
+      ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
+      ctx.shadowBlur = fontSize * 0.45;
+      ctx.shadowOffsetY = fontSize * 0.18;
+      drawRoundedCaptionBackground(ctx, boxX, boxY, boxWidth, boxHeight, fontSize * 0.38);
+      ctx.shadowColor = "transparent";
+    }
+
+    const activeWord = captionSettings.showWordHighlight ? activeCaptionWord?.text?.replace(/[.,!?;:]+$/g, "") : null;
+
+    lines.forEach((line, index) => {
+      const lineY = y - blockHeight / 2 + index * lineHeight + lineHeight / 2;
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = preset === "creator" ? "rgba(0,0,0,0.75)" : "rgba(0,0,0,0.62)";
+      ctx.lineWidth = preset === "minimal" ? fontSize * 0.12 : fontSize * 0.09;
+      ctx.strokeText(line, canvasWidth / 2, lineY);
+
+      if (activeWord && line.toLowerCase().includes(activeWord.toLowerCase())) {
+        ctx.fillStyle = preset === "creator" ? "#fef08a" : "#7dd3fc";
+      } else if (preset === "bold") {
+        ctx.fillStyle = "#ffffff";
+      } else if (preset === "creator") {
+        ctx.fillStyle = "#f8fafc";
+      } else {
+        ctx.fillStyle = "#f8fafc";
+      }
+      ctx.fillText(line, canvasWidth / 2, lineY);
+    });
+
+    ctx.restore();
+  };
+
   const drawSpotlightToCanvas = (
     ctx: CanvasRenderingContext2D,
     canvasWidth: number,
@@ -1972,6 +2106,7 @@ export const VideoCanvas = forwardRef<
     ctx.restore();
     drawSpotlightToCanvas(ctx, canvasWidth, canvasHeight);
     drawMaskToCanvas(ctx, canvasWidth, canvasHeight);
+    drawCaptionsToCanvas(ctx, canvasWidth, canvasHeight);
     await drawCameraOverlay(ctx, canvasWidth, canvasHeight);
     drawCursorToCanvas(ctx, canvasWidth, canvasHeight, frameTime);
   };
@@ -2978,6 +3113,59 @@ export const VideoCanvas = forwardRef<
                     {maskAlignmentGuides.horizontal.map((y, index) => (
                       <div key={`mask-h-${index}`} className="absolute left-0 right-0 h-px bg-fuchsia-200/45" style={{ top: `${y}%` }} />
                     ))}
+                  </div>
+                )}
+                {activeCaptionSegment && captionSettings.enabled && (
+                  <div
+                    data-effect-interactive
+                    className="absolute left-1/2 pointer-events-auto flex -translate-x-1/2 items-center justify-center px-4"
+                    style={{
+                      zIndex: VIDEO_Z_INDEX + 176,
+                      top: `${captionSettings.positionY}%`,
+                      width: `${captionSettings.maxWidth}%`,
+                      transform: "translate(-50%, -50%)",
+                    }}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      props.onSelectCaptionSegment?.(activeCaptionSegment.id);
+                    }}
+                  >
+                    <div
+                      className={`max-w-full rounded-2xl px-5 py-3 text-center font-black leading-tight tracking-[-0.02em] shadow-2xl transition ${
+                        captionSettings.preset === "minimal"
+                          ? "bg-transparent text-white drop-shadow-[0_8px_18px_rgba(0,0,0,0.8)]"
+                          : captionSettings.preset === "creator"
+                            ? "bg-black/70 text-white ring-1 ring-white/10"
+                            : captionSettings.preset === "bold"
+                              ? "bg-white text-black"
+                              : "bg-slate-950/65 text-white ring-1 ring-cyan-300/20 backdrop-blur-xl"
+                      } ${selectedCaptionSegmentId === activeCaptionSegment.id ? "outline outline-2 outline-cyan-300/70" : ""}`}
+                      style={{
+                        fontSize: `clamp(18px, ${captionSettings.fontSize / 16}cqw, 64px)`,
+                        backgroundColor:
+                          captionSettings.preset === "minimal" || captionSettings.preset === "bold"
+                            ? undefined
+                            : `rgba(2, 6, 23, ${captionSettings.backgroundOpacity})`,
+                      }}
+                    >
+                      {activeCaptionSegment.words?.length && captionSettings.showWordHighlight ? (
+                        <span>
+                          {activeCaptionSegment.words.map((word, index) => {
+                            const isActiveWord = activeCaptionWord?.id === word.id;
+                            return (
+                              <span
+                                key={word.id}
+                                className={isActiveWord ? "text-cyan-300" : "text-inherit"}
+                              >
+                                {index > 0 ? " " : ""}{word.text}
+                              </span>
+                            );
+                          })}
+                        </span>
+                      ) : (
+                        activeCaptionSegment.text
+                      )}
+                    </div>
                   </div>
                 )}
                 {shouldShowSpotlight && cursorFrame && (
