@@ -23,6 +23,7 @@ export interface CaptionSettings {
   maxWidth: number;
   showWordHighlight: boolean;
   backgroundOpacity: number;
+  offsetSeconds: number;
 }
 
 export interface CaptionEditorState {
@@ -38,6 +39,7 @@ export const DEFAULT_CAPTION_SETTINGS: CaptionSettings = {
   maxWidth: 78,
   showWordHighlight: true,
   backgroundOpacity: 0.38,
+  offsetSeconds: 0,
 };
 
 export const EMPTY_CAPTION_EDITOR_STATE: CaptionEditorState = {
