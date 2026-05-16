@@ -7,6 +7,7 @@ import { TIMELINE_LABEL_WIDTH, MIN_TRIM_DURATION } from "@/lib/constants";
 import type { TimelineProps as BaseTimelineProps } from "@/types/timeline.types";
 import type { SpotlightFragment } from "@/types/spotlight.types";
 import type { EditableMaskFragment } from "@/types/mask-fragment.types";
+import type { CaptionSegment } from "@/types/caption.types";
 import LabelSidebar from "./LabelSidebar";
 import { ZoomFragmentTrackItem, findValidFragmentPosition } from "./ZoomFragmentTrackItem";
 import { SpotlightFragmentTrackItem } from "./SpotlightFragmentTrackItem";
@@ -35,6 +36,10 @@ type TimelineProps = BaseTimelineProps & {
     onUpdateMaskFragment?: (fragmentId: string, updates: Partial<EditableMaskFragment>) => void;
     onDuplicateMaskFragment?: (fragment: EditableMaskFragment) => void;
     effectInsertMode?: "spotlight" | "mask";
+    captionSegments?: CaptionSegment[];
+    selectedCaptionSegmentId?: string | null;
+    onSelectCaptionSegment?: (segmentId: string | null) => void;
+    onUpdateCaptionSegment?: (segmentId: string, updates: Partial<CaptionSegment>) => void;
 };
 
 export function Timeline({
@@ -74,6 +79,10 @@ export function Timeline({
     onUpdateMaskFragment,
     onDuplicateMaskFragment,
     effectInsertMode = "mask",
+    captionSegments = [],
+    selectedCaptionSegmentId,
+    onSelectCaptionSegment,
+    onUpdateCaptionSegment,
     // Audio props
     audioTracks = [],
     uploadedAudios = [],
@@ -161,8 +170,12 @@ export function Timeline({
             times.push(fragment.startTime, fragment.endTime);
         });
 
+        captionSegments.forEach((segment) => {
+            times.push(segment.startTime, segment.endTime);
+        });
+
         return [...new Set(times.filter((time) => Number.isFinite(time)))].sort((a, b) => a - b);
-    }, [currentTime, maskFragments, spotlightFragments, validDuration, zoomFragments]);
+    }, [captionSegments, currentTime, maskFragments, spotlightFragments, validDuration, zoomFragments]);
 
     const playheadX = useMotionValue(0);
     const trimStartX = useMotionValue(0);
@@ -850,6 +863,58 @@ export function Timeline({
                                         )}
                                     </div>
                                 </div>
+
+                                {/* Subtítulos track */}
+                                {captionSegments.length > 0 && (
+                                    <div className="h-10 shrink-0 flex items-center border-t border-white/5 relative bg-gradient-to-r from-cyan-950/25 via-blue-950/20 to-transparent">
+                                        <div
+                                            className="h-full flex items-center relative px-1"
+                                            style={{ width: contentWidth > 0 ? contentWidth : "100%" }}
+                                        >
+                                            {captionSegments.map((segment) => {
+                                                const left = validDuration > 0 ? (segment.startTime / validDuration) * contentWidth : 0;
+                                                const width = validDuration > 0 ? Math.max(56, ((segment.endTime - segment.startTime) / validDuration) * contentWidth) : 80;
+                                                const isSelected = segment.id === selectedCaptionSegmentId;
+
+                                                return (
+                                                    <motion.div
+                                                        key={segment.id}
+                                                        data-effect-interactive
+                                                        className={`absolute top-[12%] h-[76%] cursor-pointer overflow-hidden rounded-xl border px-3 flex items-center gap-2 shadow-lg transition ${
+                                                            isSelected
+                                                                ? "border-cyan-300 bg-cyan-500/25 text-cyan-50 shadow-cyan-500/20"
+                                                                : "border-cyan-300/35 bg-cyan-500/12 text-cyan-100/85 hover:border-cyan-300/70 hover:bg-cyan-500/18"
+                                                        }`}
+                                                        style={{ left, width }}
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            onSelectCaptionSegment?.(segment.id);
+                                                        }}
+                                                        drag="x"
+                                                        dragMomentum={false}
+                                                        dragElastic={0}
+                                                        dragConstraints={{ left: 0, right: Math.max(0, contentWidth - width) }}
+                                                        onDragStart={() => setIsOverFragment(true)}
+                                                        onDragEnd={(_, info) => {
+                                                            setIsOverFragment(false);
+                                                            if (!onUpdateCaptionSegment || validDuration <= 0 || contentWidth <= 0) return;
+                                                            const deltaTime = (info.offset.x / contentWidth) * validDuration;
+                                                            const duration = segment.endTime - segment.startTime;
+                                                            const startTime = Math.max(0, Math.min(validDuration - duration, segment.startTime + deltaTime));
+                                                            onUpdateCaptionSegment(segment.id, {
+                                                                startTime,
+                                                                endTime: Math.min(validDuration, startTime + duration),
+                                                            });
+                                                        }}
+                                                    >
+                                                        <Icon icon="solar:subtitles-bold" width="14" className="shrink-0" />
+                                                        <span className="truncate text-[11px] font-semibold">{segment.text || "Subtítulo"}</span>
+                                                    </motion.div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Audio track - only show if there are audio tracks */}
                                 {audioTracks.length > 0 && (
