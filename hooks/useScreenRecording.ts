@@ -67,7 +67,9 @@ async function cleanupOldRecordings(db: IDBDatabase): Promise<void> {
           const getRequest = store.get(key);
 
           getRequest.onsuccess = () => {
-            const record = getRequest.result as { timestamp?: number } | undefined;
+            const record = getRequest.result as
+              | { timestamp?: number }
+              | undefined;
 
             if (record?.timestamp && record.timestamp < cutoff) {
               store.delete(key);
@@ -106,8 +108,8 @@ async function getDB(): Promise<IDBDatabase> {
     request.onblocked = () => {
       reject(
         new Error(
-          "La base de datos está bloqueada por otra pestaña. Cierra otras pestañas de Studio y vuelve a intentarlo."
-        )
+          "La base de datos está bloqueada por otra pestaña. Cierra otras pestañas de Studio y vuelve a intentarlo.",
+        ),
       );
     };
   });
@@ -121,7 +123,7 @@ async function saveVideoToIndexedDB(
     cameraConfig?: CameraConfig | null;
     cursorData?: CursorRecordingData | null;
     localCaptions?: CaptionSegment[] | null;
-  } = {}
+  } = {},
 ): Promise<string> {
   const videoId = generateVideoId();
   const db = await getDB();
@@ -148,7 +150,7 @@ async function saveVideoToIndexedDB(
         videoId,
         timestamp: videoData.timestamp,
       },
-      "currentVideo"
+      "currentVideo",
     );
 
     transaction.oncomplete = () => {
@@ -213,7 +215,9 @@ export async function loadVideoFromIndexedDB(): Promise<{
             cameraUrl: cameraBlob ? URL.createObjectURL(cameraBlob) : null,
             cameraConfig: currentData.cameraConfig ?? null,
             cursorData: currentData.cursorData ?? null,
-            localCaptions: Array.isArray(currentData.localCaptions) ? currentData.localCaptions : null,
+            localCaptions: Array.isArray(currentData.localCaptions)
+              ? currentData.localCaptions
+              : null,
           });
           return;
         }
@@ -251,7 +255,9 @@ export async function loadVideoFromIndexedDB(): Promise<{
             cameraUrl: cameraBlob ? URL.createObjectURL(cameraBlob) : null,
             cameraConfig: data.cameraConfig ?? null,
             cursorData: data.cursorData ?? null,
-            localCaptions: Array.isArray(data.localCaptions) ? data.localCaptions : null,
+            localCaptions: Array.isArray(data.localCaptions)
+              ? data.localCaptions
+              : null,
           });
         };
 
@@ -323,7 +329,9 @@ function pickSupportedMimeType(preferred: string[]): string | undefined {
 }
 
 function formatRecordingTitle(seconds: number): string {
-  const mins = Math.floor(seconds / 60).toString().padStart(2, "0");
+  const mins = Math.floor(seconds / 60)
+    .toString()
+    .padStart(2, "0");
   const secs = (seconds % 60).toString().padStart(2, "0");
   return `Grabando ${mins}:${secs}`;
 }
@@ -369,7 +377,7 @@ async function buildFinalScreenStream(params: {
 
     if (screenAudioTracks.length > 0) {
       const screenSource = audioCtx.createMediaStreamSource(
-        new MediaStream(screenAudioTracks)
+        new MediaStream(screenAudioTracks),
       );
 
       const screenGain = audioCtx.createGain();
@@ -381,7 +389,7 @@ async function buildFinalScreenStream(params: {
 
     if (micAudioTracks.length > 0) {
       const micSource = audioCtx.createMediaStreamSource(
-        new MediaStream(micAudioTracks)
+        new MediaStream(micAudioTracks),
       );
 
       const micGain = audioCtx.createGain();
@@ -400,7 +408,6 @@ async function buildFinalScreenStream(params: {
     return screenStream;
   }
 }
-
 
 type SpeechRecognitionResultItem = {
   transcript: string;
@@ -455,17 +462,57 @@ function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | null 
   if (typeof window === "undefined") return null;
 
   const speechWindow = window as WindowWithSpeechRecognition;
-  return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition ?? null;
+  return (
+    speechWindow.SpeechRecognition ??
+    speechWindow.webkitSpeechRecognition ??
+    null
+  );
 }
 
 function cleanCaptionText(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
-function estimateCaptionStart(text: string, endTime: number, previousEndTime: number): number {
-  const wordCount = Math.max(1, cleanCaptionText(text).split(/\s+/).filter(Boolean).length);
+function estimateCaptionStart(
+  text: string,
+  endTime: number,
+  previousEndTime: number,
+): number {
+  const wordCount = Math.max(
+    1,
+    cleanCaptionText(text).split(/\s+/).filter(Boolean).length,
+  );
   const estimatedDuration = Math.min(5.5, Math.max(1.2, wordCount * 0.38));
   return Math.max(previousEndTime, Math.max(0, endTime - estimatedDuration));
+}
+
+function createLocalCaptionSegment(params: {
+  text: string;
+  endTime: number;
+  previousEndTime: number;
+  source: "final" | "interim" | "flush";
+}): CaptionSegment | null {
+  const text = cleanCaptionText(params.text);
+
+  if (!text) return null;
+
+  const startTime = estimateCaptionStart(
+    text,
+    params.endTime,
+    params.previousEndTime,
+  );
+  const safeEndTime = Math.max(startTime + 0.6, params.endTime);
+  const segmentId = `caption-local-${params.source}-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 7)}`;
+
+  return {
+    id: segmentId,
+    startTime,
+    endTime: safeEndTime,
+    text,
+    words: createCaptionWords(text, startTime, safeEndTime, segmentId),
+  };
 }
 
 export function useScreenRecording() {
@@ -503,6 +550,8 @@ export function useScreenRecording() {
   const captionRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const captionRecognitionActiveRef = useRef<boolean>(false);
   const captionFinalEndRef = useRef<number>(0);
+  const captionInterimTextRef = useRef<string>("");
+  const captionLastTextRef = useRef<string>("");
 
   useEffect(() => {
     stateRef.current = state;
@@ -522,7 +571,8 @@ export function useScreenRecording() {
     if (typeof document === "undefined") return;
 
     if (state === "idle") {
-      document.title = originalTitleRef.current || "openvid - Crea tomas cinemáticas";
+      document.title =
+        originalTitleRef.current || "openvid - Crea tomas cinemáticas";
       return;
     }
 
@@ -586,10 +636,11 @@ export function useScreenRecording() {
     cursorTrackingCleanupRef.current = null;
   }, []);
 
-
   const startLocalCaptionRecognition = useCallback((enabled: boolean) => {
     localCaptionSegmentsRef.current = [];
     captionFinalEndRef.current = 0;
+    captionInterimTextRef.current = "";
+    captionLastTextRef.current = "";
 
     if (!enabled) return;
 
@@ -610,26 +661,47 @@ export function useScreenRecording() {
       captionRecognitionActiveRef.current = true;
 
       recognition.onresult = (event) => {
-        for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        for (
+          let index = event.resultIndex;
+          index < event.results.length;
+          index += 1
+        ) {
           const result = event.results[index];
           const alternative = result?.[0];
           const text = cleanCaptionText(alternative?.transcript ?? "");
 
-          if (!text || !result?.isFinal) continue;
+          if (!text) continue;
 
-          const endTime = Math.max(0.1, (Date.now() - startTimeRef.current) / 1000);
-          const startTime = estimateCaptionStart(text, endTime, captionFinalEndRef.current);
-          const segmentId = `caption-local-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`;
+          if (!result?.isFinal) {
+            captionInterimTextRef.current = text;
+            continue;
+          }
 
-          localCaptionSegmentsRef.current.push({
-            id: segmentId,
-            startTime,
-            endTime: Math.max(startTime + 0.6, endTime),
+          if (text === captionLastTextRef.current) {
+            captionInterimTextRef.current = "";
+            continue;
+          }
+
+          const endTime = Math.max(
+            0.1,
+            (Date.now() - startTimeRef.current) / 1000,
+          );
+          const segment = createLocalCaptionSegment({
             text,
-            words: createCaptionWords(text, startTime, Math.max(startTime + 0.6, endTime), segmentId),
+            endTime,
+            previousEndTime: captionFinalEndRef.current,
+            source: "final",
           });
 
-          captionFinalEndRef.current = Math.max(captionFinalEndRef.current, endTime);
+          if (!segment) continue;
+
+          localCaptionSegmentsRef.current.push(segment);
+          captionFinalEndRef.current = Math.max(
+            captionFinalEndRef.current,
+            segment.endTime,
+          );
+          captionLastTextRef.current = text;
+          captionInterimTextRef.current = "";
         }
       };
 
@@ -638,7 +710,11 @@ export function useScreenRecording() {
       };
 
       recognition.onend = () => {
-        if (!captionRecognitionActiveRef.current || stateRef.current !== "recording") return;
+        if (
+          !captionRecognitionActiveRef.current ||
+          stateRef.current !== "recording"
+        )
+          return;
 
         try {
           recognition.start();
@@ -658,6 +734,32 @@ export function useScreenRecording() {
 
   const stopLocalCaptionRecognition = useCallback(() => {
     captionRecognitionActiveRef.current = false;
+
+    const pendingInterimText = cleanCaptionText(captionInterimTextRef.current);
+
+    if (
+      pendingInterimText &&
+      pendingInterimText !== captionLastTextRef.current
+    ) {
+      const endTime = Math.max(0.1, (Date.now() - startTimeRef.current) / 1000);
+      const segment = createLocalCaptionSegment({
+        text: pendingInterimText,
+        endTime,
+        previousEndTime: captionFinalEndRef.current,
+        source: "flush",
+      });
+
+      if (segment) {
+        localCaptionSegmentsRef.current.push(segment);
+        captionFinalEndRef.current = Math.max(
+          captionFinalEndRef.current,
+          segment.endTime,
+        );
+        captionLastTextRef.current = pendingInterimText;
+      }
+    }
+
+    captionInterimTextRef.current = "";
 
     const recognition = captionRecognitionRef.current;
     captionRecognitionRef.current = null;
@@ -730,7 +832,9 @@ export function useScreenRecording() {
 
         startTimeRef.current = Date.now();
         startCursorTracking();
-        startLocalCaptionRecognition(Boolean(micStreamRef.current?.getAudioTracks().length));
+        startLocalCaptionRecognition(
+          Boolean(micStreamRef.current?.getAudioTracks().length),
+        );
 
         const screenMime =
           pickSupportedMimeType([
@@ -743,7 +847,7 @@ export function useScreenRecording() {
 
         const screenRecorder = new MediaRecorder(
           screenStream,
-          screenMime ? { mimeType: screenMime } : undefined
+          screenMime ? { mimeType: screenMime } : undefined,
         );
 
         screenRecorderRef.current = screenRecorder;
@@ -775,7 +879,7 @@ export function useScreenRecording() {
 
           cameraRecorder = new MediaRecorder(
             camStream,
-            camMime ? { mimeType: camMime } : undefined
+            camMime ? { mimeType: camMime } : undefined,
           );
 
           cameraRecorderRef.current = cameraRecorder;
@@ -802,8 +906,13 @@ export function useScreenRecording() {
 
           setState("processing");
 
-          const duration = Math.max(0.1, (Date.now() - startTimeRef.current) / 1000);
-          const videoTrackSettings = screenStream.getVideoTracks()[0]?.getSettings();
+          const duration = Math.max(
+            0.1,
+            (Date.now() - startTimeRef.current) / 1000,
+          );
+          const videoTrackSettings = screenStream
+            .getVideoTracks()[0]
+            ?.getSettings();
 
           stopCursorTracking();
           stopLocalCaptionRecognition();
@@ -829,7 +938,7 @@ export function useScreenRecording() {
                 cameraConfig: cameraConfigRef.current,
                 cursorData,
                 localCaptions: localCaptionSegmentsRef.current,
-              }
+              },
             );
 
             setRecordingTime(0);
@@ -908,7 +1017,7 @@ export function useScreenRecording() {
       stopCursorTracking,
       stopLocalCaptionRecognition,
       stopRecording,
-    ]
+    ],
   );
 
   const startCountdown = useCallback(
@@ -921,7 +1030,7 @@ export function useScreenRecording() {
 
         if (!navigator.mediaDevices?.getDisplayMedia) {
           setError(
-            "Tu navegador no soporta grabación de pantalla. Usa Chrome, Edge o un navegador compatible."
+            "Tu navegador no soporta grabación de pantalla. Usa Chrome, Edge o un navegador compatible.",
           );
           return;
         }
@@ -971,10 +1080,13 @@ export function useScreenRecording() {
 
         if (setup.microphone.enabled) {
           try {
-            micStream = await requestMicrophoneStream(setup.microphone.deviceId, {
-              noiseSuppression: setup.microphone.noiseSuppression,
-              echoCancellation: setup.microphone.echoCancellation,
-            });
+            micStream = await requestMicrophoneStream(
+              setup.microphone.deviceId,
+              {
+                noiseSuppression: setup.microphone.noiseSuppression,
+                echoCancellation: setup.microphone.echoCancellation,
+              },
+            );
 
             micStreamRef.current = micStream;
           } catch (err) {
@@ -1025,7 +1137,7 @@ export function useScreenRecording() {
         setState("idle");
       }
     },
-    [cleanupStreams, startRecording, stopRecording]
+    [cleanupStreams, startRecording, stopRecording],
   );
 
   const cancelRecording = useCallback(() => {
@@ -1036,6 +1148,8 @@ export function useScreenRecording() {
     cameraChunksRef.current = [];
     cursorFramesRef.current = [];
     localCaptionSegmentsRef.current = [];
+    captionInterimTextRef.current = "";
+    captionLastTextRef.current = "";
     stopLocalCaptionRecognition();
 
     setRecordingTime(0);
