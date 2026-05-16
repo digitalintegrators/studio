@@ -155,6 +155,44 @@ export function CaptionsMenu({
           </label>
         </section>
 
+
+        <section className="space-y-4 rounded-3xl border border-cyan-300/15 bg-cyan-400/[0.045] p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-sm font-bold text-white">Sincronía</div>
+              <div className="mt-1 text-xs leading-relaxed text-white/45">
+                Adelanta o retrasa los subtítulos para alinearlos con el audio del video.
+              </div>
+            </div>
+
+            <div className="shrink-0 rounded-full border border-cyan-300/25 bg-cyan-400/10 px-3 py-1 text-xs font-bold text-cyan-200">
+              {(settings.offsetSeconds ?? 0) > 0 ? "+" : ""}{(settings.offsetSeconds ?? 0).toFixed(1)}s
+            </div>
+          </div>
+
+          <SliderRow
+            label="Desplazamiento"
+            value={Math.round((settings.offsetSeconds ?? 0) * 10)}
+            min={-30}
+            max={30}
+            suffix=""
+            onChange={(value) => onSettingsChange({ offsetSeconds: value / 10 })}
+          />
+
+          <div className="flex items-center justify-between text-[11px] text-white/40">
+            <span>Aparecen antes</span>
+            <span>Aparecen después</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onSettingsChange({ offsetSeconds: 0 })}
+            className="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-semibold text-white/65 transition hover:border-cyan-300/30 hover:bg-cyan-400/10 hover:text-cyan-100"
+          >
+            Restablecer sincronía
+          </button>
+        </section>
+
         <section className="rounded-3xl border border-white/10 bg-white/[0.035] p-4">
           <div className="mb-3 flex items-center justify-between">
             <div>
