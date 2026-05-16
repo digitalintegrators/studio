@@ -2393,8 +2393,19 @@ export default function Editor() {
                         setSelectedSpotlightFragmentId(null);
                         setMaskFragments(loadStoredMaskFragments(videoToLoad.videoId));
             const storedCaptionState = loadStoredCaptionEditorState(videoToLoad.videoId);
-            setCaptionSegments(storedCaptionState?.segments ?? []);
-            setCaptionSettings(storedCaptionState?.settings ?? DEFAULT_CAPTION_SETTINGS);
+            const recordedLocalCaptions = "localCaptions" in videoToLoad && Array.isArray(videoToLoad.localCaptions)
+                ? videoToLoad.localCaptions
+                : [];
+            const restoredCaptionSegments = storedCaptionState?.segments?.length
+                ? storedCaptionState.segments
+                : recordedLocalCaptions;
+
+            setCaptionSegments(restoredCaptionSegments);
+            setCaptionSettings({
+                ...DEFAULT_CAPTION_SETTINGS,
+                ...(storedCaptionState?.settings ?? {}),
+                enabled: restoredCaptionSegments.length > 0 ? true : (storedCaptionState?.settings?.enabled ?? DEFAULT_CAPTION_SETTINGS.enabled),
+            });
                         setSelectedMaskFragmentId(null);
 
             const storedAudioState = loadStoredAudioEditorState(videoToLoad.videoId);
