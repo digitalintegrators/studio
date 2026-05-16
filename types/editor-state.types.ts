@@ -8,6 +8,8 @@ import type {
     SpotlightFragment,
 } from "@/types";
 import type { EditableMaskFragment } from "@/types/mask-fragment.types";
+import type { CaptionEditorState } from "@/types/caption.types";
+import { EMPTY_CAPTION_EDITOR_STATE } from "@/types/caption.types";
 
 import type { TrimRange } from "@/types/timeline.types";
 import type { MockupConfig } from "@/types/mockup.types";
@@ -43,6 +45,7 @@ export interface EditorState {
     zoomFragments: ZoomFragment[];
     spotlightFragments: SpotlightFragment[];
     maskFragments: EditableMaskFragment[];
+    captions: CaptionEditorState;
     mockupId: string;
     mockupConfig: MockupConfig;
     canvasElements: CanvasElement[];
@@ -91,6 +94,7 @@ export function createInitialEditorState(
         zoomFragments: [],
         spotlightFragments: [],
         maskFragments: [],
+        captions: EMPTY_CAPTION_EDITOR_STATE,
 
         mockupId: "none",
 
