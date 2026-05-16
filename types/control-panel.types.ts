@@ -7,6 +7,7 @@ import type { UploadedAudio, AudioTrack } from "./audio.types";
 import type { CursorConfig, CursorRecordingData } from "./cursor.types";
 import type { CameraConfig } from "./camera.types";
 import type { ImageProjectPreview } from "./image-project.types";
+import type { CaptionSegment, CaptionSettings } from "./caption.types";
 
 export interface ControlPanelProps {
     activeTool: Tool;
@@ -145,6 +146,31 @@ export interface ControlPanelProps {
     onVideoAudioToggle?: (
         videoId: string,
         hasAudio: boolean
+    ) => void;
+
+
+    // Captions
+    captionSegments?: CaptionSegment[];
+    captionSettings?: CaptionSettings;
+    selectedCaptionSegmentId?: string | null;
+
+    onCaptionSettingsChange?: (
+        updates: Partial<CaptionSettings>
+    ) => void;
+
+    onAddDemoCaptions?: () => void;
+
+    onSelectCaptionSegment?: (
+        segmentId: string | null
+    ) => void;
+
+    onUpdateCaptionSegment?: (
+        segmentId: string,
+        updates: Partial<CaptionSegment>
+    ) => void;
+
+    onDeleteCaptionSegment?: (
+        segmentId: string
     ) => void;
 
     // Camera overlay props
