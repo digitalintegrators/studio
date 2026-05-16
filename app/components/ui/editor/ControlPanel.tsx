@@ -28,6 +28,7 @@ import { TooltipAction } from "@/components/ui/tooltip-action";
 import CursorMenu from "./CursorMenu";
 import { DEFAULT_CURSOR_CONFIG } from "@/types/cursor.types";
 import { CameraMenu } from "./CameraMenu";
+import { CaptionsMenu } from "./CaptionsMenu";
 
 const ImageRecentBackgroundGrid = lazy(() => import("../ImageRecentBackgroundGrid").then(mod => ({ default: mod.ImageRecentBackgroundGrid })));
 const BackgroundColorEditor = lazy(() => import("../BackgroundColorEditor").then(mod => ({ default: mod.BackgroundColorEditor })));
@@ -102,6 +103,14 @@ export function ControlPanel({
     cursorData,
     isRecordedVideo = false,
     onCursorConfigChange,
+    captionSegments = [],
+    captionSettings,
+    selectedCaptionSegmentId = null,
+    onCaptionSettingsChange,
+    onAddDemoCaptions,
+    onSelectCaptionSegment,
+    onUpdateCaptionSegment,
+    onDeleteCaptionSegment,
     onAddVideoToTrack,
     onRemoveVideoFromTrack,
     onVideoUploadToLibrary,
@@ -299,6 +308,20 @@ export function ControlPanel({
                             isRecordedVideo={isRecordedVideo}
                         />
                     </Suspense>
+                )}
+
+                {activeTool === "captions" && captionSettings && (
+                    <CaptionsMenu
+                        segments={captionSegments}
+                        settings={captionSettings}
+                        selectedSegmentId={selectedCaptionSegmentId}
+                        videoDuration={videoDuration}
+                        onSettingsChange={onCaptionSettingsChange || (() => { })}
+                        onAddDemoCaptions={onAddDemoCaptions || (() => { })}
+                        onSelectSegment={onSelectCaptionSegment || (() => { })}
+                        onUpdateSegment={onUpdateCaptionSegment || (() => { })}
+                        onDeleteSegment={onDeleteCaptionSegment || (() => { })}
+                    />
                 )}
 
                 {activeTool === "camera" && (
