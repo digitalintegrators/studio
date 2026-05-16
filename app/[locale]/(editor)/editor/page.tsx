@@ -34,6 +34,8 @@ import { gradientToCss, generateDefaultZoomFragments, createZoomFragment, ASPECT
 import type { SpotlightFragment } from "@/types/spotlight.types";
 import { createSpotlightFragment, DEFAULT_SPOTLIGHT_DURATION } from "@/types/spotlight.types";
 import type { EditableMaskFragment, EditableMaskPreset } from "@/types/mask-fragment.types";
+import type { CaptionEditorState, CaptionSegment, CaptionSettings } from "@/types/caption.types";
+import { DEFAULT_CAPTION_SETTINGS, createDemoCaptionSegments } from "@/types/caption.types";
 import {
     applyMaskPresetDefaults,
     createEditableMaskFragment,
