@@ -10,3 +10,4 @@ export * from './camera.types';
 export * from './image-project.types';
 export * from './mask-fragment.types';
 export * from './spotlight.types';
+export * from './caption.types';
