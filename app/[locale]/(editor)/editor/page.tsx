@@ -2392,20 +2392,23 @@ export default function Editor() {
                         setSpotlightFragments(loadStoredSpotlightFragments(videoToLoad.videoId));
                         setSelectedSpotlightFragmentId(null);
                         setMaskFragments(loadStoredMaskFragments(videoToLoad.videoId));
-            const storedCaptionState = loadStoredCaptionEditorState(videoToLoad.videoId);
-            const recordedLocalCaptions = "localCaptions" in videoToLoad && Array.isArray(videoToLoad.localCaptions)
-                ? videoToLoad.localCaptions
-                : [];
-            const restoredCaptionSegments = storedCaptionState?.segments?.length
-                ? storedCaptionState.segments
-                : recordedLocalCaptions;
+                        const storedCaptionState = loadStoredCaptionEditorState(videoToLoad.videoId);
+                        const recordedLocalCaptions = "localCaptions" in videoToLoad && Array.isArray(videoToLoad.localCaptions)
+                            ? videoToLoad.localCaptions
+                            : [];
+                        const restoredCaptionSegments = storedCaptionState?.segments?.length
+                            ? storedCaptionState.segments
+                            : recordedLocalCaptions;
 
-            setCaptionSegments(restoredCaptionSegments);
-            setCaptionSettings({
-                ...DEFAULT_CAPTION_SETTINGS,
-                ...(storedCaptionState?.settings ?? {}),
-                enabled: restoredCaptionSegments.length > 0 ? true : (storedCaptionState?.settings?.enabled ?? DEFAULT_CAPTION_SETTINGS.enabled),
-            });
+                        setCaptionSegments(restoredCaptionSegments);
+                        setCaptionSettings({
+                            ...DEFAULT_CAPTION_SETTINGS,
+                            ...(storedCaptionState?.settings ?? {}),
+                            enabled: restoredCaptionSegments.length > 0
+                                ? true
+                                : (storedCaptionState?.settings?.enabled ?? DEFAULT_CAPTION_SETTINGS.enabled),
+                        });
+                        setSelectedCaptionSegmentId(restoredCaptionSegments[0]?.id ?? null);
                         setSelectedMaskFragmentId(null);
 
             const storedAudioState = loadStoredAudioEditorState(videoToLoad.videoId);
