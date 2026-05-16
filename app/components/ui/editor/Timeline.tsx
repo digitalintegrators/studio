@@ -864,57 +864,8 @@ export function Timeline({
                                     </div>
                                 </div>
 
-                                {/* Subtítulos track */}
-                                {captionSegments.length > 0 && (
-                                    <div className="h-10 shrink-0 flex items-center border-t border-white/5 relative bg-gradient-to-r from-cyan-950/25 via-blue-950/20 to-transparent">
-                                        <div
-                                            className="h-full flex items-center relative px-1"
-                                            style={{ width: contentWidth > 0 ? contentWidth : "100%" }}
-                                        >
-                                            {captionSegments.map((segment) => {
-                                                const left = validDuration > 0 ? (segment.startTime / validDuration) * contentWidth : 0;
-                                                const width = validDuration > 0 ? Math.max(56, ((segment.endTime - segment.startTime) / validDuration) * contentWidth) : 80;
-                                                const isSelected = segment.id === selectedCaptionSegmentId;
-
-                                                return (
-                                                    <motion.div
-                                                        key={segment.id}
-                                                        data-effect-interactive
-                                                        className={`absolute top-[12%] h-[76%] cursor-pointer overflow-hidden rounded-xl border px-3 flex items-center gap-2 shadow-lg transition ${
-                                                            isSelected
-                                                                ? "border-cyan-300 bg-cyan-500/25 text-cyan-50 shadow-cyan-500/20"
-                                                                : "border-cyan-300/35 bg-cyan-500/12 text-cyan-100/85 hover:border-cyan-300/70 hover:bg-cyan-500/18"
-                                                        }`}
-                                                        style={{ left, width }}
-                                                        onClick={(event) => {
-                                                            event.stopPropagation();
-                                                            onSelectCaptionSegment?.(segment.id);
-                                                        }}
-                                                        drag="x"
-                                                        dragMomentum={false}
-                                                        dragElastic={0}
-                                                        dragConstraints={{ left: 0, right: Math.max(0, contentWidth - width) }}
-                                                        onDragStart={() => setIsOverFragment(true)}
-                                                        onDragEnd={(_, info) => {
-                                                            setIsOverFragment(false);
-                                                            if (!onUpdateCaptionSegment || validDuration <= 0 || contentWidth <= 0) return;
-                                                            const deltaTime = (info.offset.x / contentWidth) * validDuration;
-                                                            const duration = segment.endTime - segment.startTime;
-                                                            const startTime = Math.max(0, Math.min(validDuration - duration, segment.startTime + deltaTime));
-                                                            onUpdateCaptionSegment(segment.id, {
-                                                                startTime,
-                                                                endTime: Math.min(validDuration, startTime + duration),
-                                                            });
-                                                        }}
-                                                    >
-                                                        <Icon icon="solar:subtitles-bold" width="14" className="shrink-0" />
-                                                        <span className="truncate text-[11px] font-semibold">{segment.text || "Subtítulo"}</span>
-                                                    </motion.div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
+                                {/* Los subtítulos no se muestran como pista para mantener el timeline limpio.
+                                    Su configuración vive en el panel lateral de Subtítulos y el render ocurre en el canvas/export. */}
 
                                 {/* Audio track - only show if there are audio tracks */}
                                 {audioTracks.length > 0 && (
