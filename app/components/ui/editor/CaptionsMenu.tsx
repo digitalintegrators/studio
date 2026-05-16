@@ -74,6 +74,10 @@ export function CaptionsMenu({
             </button>
           </div>
 
+          <div className="mb-4 rounded-2xl border border-cyan-300/10 bg-cyan-400/[0.06] px-3 py-3 text-xs leading-relaxed text-white/55">
+            Los subtítulos locales se generan durante la grabación cuando el navegador soporta reconocimiento de voz y el micrófono está activo. No usa OpenAI ni servicios externos.
+          </div>
+
           <div className="grid grid-cols-2 gap-2">
             {presetLabels.map((preset) => (
               <button
@@ -189,7 +193,7 @@ export function CaptionsMenu({
             </div>
           ) : (
             <div className="rounded-2xl border border-dashed border-white/12 bg-black/20 p-4 text-sm text-white/45">
-              No hay subtítulos todavía. Usa subtítulos demo o, en el siguiente sprint, genera subtítulos locales durante la grabación.
+              No hay subtítulos todavía. Graba con micrófono activo para generar subtítulos locales o usa Demo para probar estilos.
             </div>
           )}
         </section>
