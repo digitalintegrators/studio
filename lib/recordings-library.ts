@@ -1,3 +1,5 @@
+import type { CaptionSegment } from "@/types/caption.types";
+
 export type RecordingLibraryItem = {
   videoId: string;
   duration: number;
@@ -6,6 +8,7 @@ export type RecordingLibraryItem = {
   thumbnailUrl?: string | null;
   isRecordedVideo?: boolean;
   hasCamera?: boolean;
+  localCaptions?: CaptionSegment[] | null;
 };
 
 const DB_NAME = "openvidDB";
@@ -86,6 +89,7 @@ export async function listRecordedVideos(): Promise<RecordingLibraryItem[]> {
                 url: URL.createObjectURL(data.blob),
                 isRecordedVideo: data.isRecordedVideo ?? true,
                 hasCamera: Boolean(data.cameraBlob),
+                localCaptions: Array.isArray(data.localCaptions) ? data.localCaptions : null,
               });
             }
 
