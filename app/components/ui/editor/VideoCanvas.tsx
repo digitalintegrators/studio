@@ -407,7 +407,8 @@ export const VideoCanvas = forwardRef<
       return selectedSegment;
     }
 
-    return getActiveCaptionSegment(captionSegments, currentTime);
+    const captionTime = currentTime - (captionSettings.offsetSeconds ?? 0);
+    return getActiveCaptionSegment(captionSegments, captionTime);
   }, [
     mediaType,
     hasMedia,
@@ -415,12 +416,14 @@ export const VideoCanvas = forwardRef<
     selectedCaptionSegmentId,
     captionSegments,
     currentTime,
+    captionSettings.offsetSeconds,
     isPlaying,
   ]);
 
   const activeCaptionWord = useMemo(() => {
-    return getActiveCaptionWord(activeCaptionSegment, currentTime);
-  }, [activeCaptionSegment, currentTime]);
+    const captionTime = currentTime - (captionSettings.offsetSeconds ?? 0);
+    return getActiveCaptionWord(activeCaptionSegment, captionTime);
+  }, [activeCaptionSegment, currentTime, captionSettings.offsetSeconds]);
 
   const shouldShowUnsplashOverride =
     backgroundTab === "wallpaper" && unsplashOverrideUrl !== "";
