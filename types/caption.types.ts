@@ -45,6 +45,19 @@ export const EMPTY_CAPTION_EDITOR_STATE: CaptionEditorState = {
   settings: DEFAULT_CAPTION_SETTINGS,
 };
 
+export function createCaptionWords(text: string, startTime: number, endTime: number, idPrefix = "caption-word"): CaptionWord[] {
+  const rawWords = text.split(/\s+/).map((word) => word.trim()).filter(Boolean);
+  const duration = Math.max(0.4, endTime - startTime);
+  const wordDuration = duration / Math.max(1, rawWords.length);
+
+  return rawWords.map((word, index) => ({
+    id: `${idPrefix}-word-${index + 1}`,
+    text: word,
+    startTime: startTime + index * wordDuration,
+    endTime: Math.min(endTime, startTime + (index + 1) * wordDuration),
+  }));
+}
+
 export function createDemoCaptionSegments(duration: number): CaptionSegment[] {
   const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 18;
   const items = [
