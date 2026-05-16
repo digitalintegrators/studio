@@ -3118,12 +3118,10 @@ export const VideoCanvas = forwardRef<
                 {activeCaptionSegment && captionSettings.enabled && (
                   <div
                     data-effect-interactive
-                    className="absolute left-1/2 pointer-events-auto flex -translate-x-1/2 items-center justify-center px-4"
+                    className="absolute inset-x-0 pointer-events-auto flex -translate-y-1/2 items-center justify-center px-4"
                     style={{
                       zIndex: VIDEO_Z_INDEX + 176,
                       top: `${captionSettings.positionY}%`,
-                      width: `${captionSettings.maxWidth}%`,
-                      transform: "translate(-50%, -50%)",
                     }}
                     onClick={(event) => {
                       event.stopPropagation();
@@ -3131,7 +3129,7 @@ export const VideoCanvas = forwardRef<
                     }}
                   >
                     <div
-                      className={`max-w-full rounded-2xl px-5 py-3 text-center font-black leading-tight tracking-[-0.02em] shadow-2xl transition ${
+                      className={`w-fit rounded-2xl px-5 py-3 text-center font-black leading-tight tracking-[-0.02em] shadow-2xl transition ${
                         captionSettings.preset === "minimal"
                           ? "bg-transparent text-white drop-shadow-[0_8px_18px_rgba(0,0,0,0.8)]"
                           : captionSettings.preset === "creator"
@@ -3141,6 +3139,7 @@ export const VideoCanvas = forwardRef<
                               : "bg-slate-950/65 text-white ring-1 ring-cyan-300/20 backdrop-blur-xl"
                       } ${selectedCaptionSegmentId === activeCaptionSegment.id ? "outline outline-2 outline-cyan-300/70" : ""}`}
                       style={{
+                        maxWidth: `${captionSettings.maxWidth}%`,
                         fontSize: `clamp(18px, ${captionSettings.fontSize / 16}cqw, 64px)`,
                         backgroundColor:
                           captionSettings.preset === "minimal" || captionSettings.preset === "bold"
