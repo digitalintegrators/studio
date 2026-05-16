@@ -11,6 +11,7 @@ export type Tool =
   | "mask"
   | "mockup"
   | "cursor"
+  | "captions"
   | "videos"
   | "camera"
   | "history";
