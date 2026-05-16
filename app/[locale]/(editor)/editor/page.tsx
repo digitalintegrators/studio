@@ -3661,6 +3661,14 @@ export default function Editor() {
                                         cursorData={cursorData}
                                         onCursorConfigChange={handleCursorConfigChange}
                                         isRecordedVideo={isRecordedVideo}
+                                        captionSegments={captionSegments}
+                                        captionSettings={captionSettings}
+                                        selectedCaptionSegmentId={selectedCaptionSegmentId}
+                                        onCaptionSettingsChange={handleUpdateCaptionSettings}
+                                        onAddDemoCaptions={handleAddDemoCaptions}
+                                        onSelectCaptionSegment={handleSelectCaptionSegment}
+                                        onUpdateCaptionSegment={handleUpdateCaptionSegment}
+                                        onDeleteCaptionSegment={handleDeleteCaptionSegment}
                                     />
                                 </Suspense>
                             </motion.div>
@@ -3795,112 +3803,6 @@ export default function Editor() {
                             }, 300);
                         }}
                     />
-
-                    {isVideoMode && (activeTool === "captions" || selectedCaptionSegment) && (
-                        <motion.div
-                            initial={{ opacity: 0, y: 12, scale: 0.98 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: 12, scale: 0.98 }}
-                            data-caption-editor-panel
-                            className="absolute right-4 top-16 z-[82] w-[340px] rounded-2xl border border-cyan-300/20 bg-[#111113]/95 p-4 text-white shadow-2xl backdrop-blur-xl"
-                        >
-                            <div className="mb-4 flex items-center justify-between gap-3">
-                                <div className="flex items-center gap-2">
-                                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-400/15 text-cyan-300">
-                                        <Icon icon="solar:subtitles-bold" width="19" />
-                                    </div>
-                                    <div>
-                                        <div className="text-sm font-semibold text-white">Subtítulos</div>
-                                        <div className="text-[11px] text-white/45">Estilo cinematográfico</div>
-                                    </div>
-                                </div>
-
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setSelectedCaptionSegmentId(null);
-                                        if (activeTool === "captions") setActiveTool("videos");
-                                    }}
-                                    className="rounded-lg p-1.5 text-white/45 transition hover:bg-white/10 hover:text-white"
-                                    aria-label="Cerrar editor de subtítulos"
-                                >
-                                    <Icon icon="solar:close-circle-bold" width="18" />
-                                </button>
-                            </div>
-
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3">
-                                    <div>
-                                        <div className="text-sm font-semibold text-white">Mostrar subtítulos</div>
-                                        <div className="text-xs text-white/45">Preview y export</div>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleUpdateCaptionSettings({ enabled: !captionSettings.enabled })}
-                                        className={`relative h-8 w-14 rounded-full transition ${captionSettings.enabled ? "bg-cyan-400" : "bg-white/15"}`}
-                                    >
-                                        <span className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow transition ${captionSettings.enabled ? "left-7" : "left-1"}`} />
-                                    </button>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-2">
-                                    {[
-                                        ["minimal", "Mínimo"],
-                                        ["cinematic", "Cinemático"],
-                                        ["bold", "Intenso"],
-                                        ["creator", "Creador"],
-                                    ].map(([value, label]) => (
-                                        <button
-                                            key={value}
-                                            type="button"
-                                            onClick={() => handleUpdateCaptionSettings({ preset: value as CaptionSettings["preset"] })}
-                                            className={`rounded-xl border px-3 py-2 text-left text-xs font-semibold transition ${captionSettings.preset === value ? "border-cyan-300 bg-cyan-400/15 text-cyan-100" : "border-white/10 bg-white/[0.03] text-white/55 hover:text-white"}`}
-                                        >
-                                            {label}
-                                        </button>
-                                    ))}
-                                </div>
-
-                                <label className="block">
-                                    <span className="mb-1 block text-[11px] font-medium text-white/55">Posición vertical</span>
-                                    <input type="range" min={55} max={92} step={1} value={captionSettings.positionY} onChange={(event) => handleUpdateCaptionSettings({ positionY: Number(event.target.value) })} className="w-full accent-cyan-300" />
-                                </label>
-
-                                <label className="block">
-                                    <span className="mb-1 block text-[11px] font-medium text-white/55">Tamaño</span>
-                                    <input type="range" min={24} max={72} step={1} value={captionSettings.fontSize} onChange={(event) => handleUpdateCaptionSettings({ fontSize: Number(event.target.value) })} className="w-full accent-cyan-300" />
-                                </label>
-
-                                <label className="block">
-                                    <span className="mb-1 block text-[11px] font-medium text-white/55">Ancho máximo</span>
-                                    <input type="range" min={40} max={92} step={1} value={captionSettings.maxWidth} onChange={(event) => handleUpdateCaptionSettings({ maxWidth: Number(event.target.value) })} className="w-full accent-cyan-300" />
-                                </label>
-
-                                {selectedCaptionSegment ? (
-                                    <div className="space-y-3 rounded-2xl border border-white/10 bg-black/25 p-3">
-                                        <textarea
-                                            value={selectedCaptionSegment.text}
-                                            onChange={(event) => handleUpdateCaptionSegment(selectedCaptionSegment.id, { text: event.target.value })}
-                                            className="min-h-20 w-full resize-none rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300/50"
-                                        />
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <label className="block">
-                                                <span className="mb-1 block text-[11px] text-white/45">Inicio</span>
-                                                <input type="number" min={0} max={videoDuration} step={0.1} value={Number(selectedCaptionSegment.startTime.toFixed(1))} onChange={(event) => handleUpdateCaptionSegment(selectedCaptionSegment.id, { startTime: Number(event.target.value) })} className="w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-xs text-white outline-none" />
-                                            </label>
-                                            <label className="block">
-                                                <span className="mb-1 block text-[11px] text-white/45">Fin</span>
-                                                <input type="number" min={0} max={videoDuration} step={0.1} value={Number(selectedCaptionSegment.endTime.toFixed(1))} onChange={(event) => handleUpdateCaptionSegment(selectedCaptionSegment.id, { endTime: Number(event.target.value) })} className="w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-xs text-white outline-none" />
-                                            </label>
-                                        </div>
-                                        <button type="button" onClick={() => handleDeleteCaptionSegment(selectedCaptionSegment.id)} className="w-full rounded-xl bg-red-500/15 px-3 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/25">Eliminar subtítulo</button>
-                                    </div>
-                                ) : (
-                                    <button type="button" onClick={handleAddDemoCaptions} className="w-full rounded-xl bg-cyan-400 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-300">Agregar subtítulos demo</button>
-                                )}
-                            </div>
-                        </motion.div>
-                    )}
 
                     {isVideoMode && activeTool === "spotlight" && selectedSpotlightFragment && (
                         <motion.div
