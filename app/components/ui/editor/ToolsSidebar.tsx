@@ -333,6 +333,18 @@ export function ToolsSidebar({
                                     videoSrc: "/videos/preview-cursor.mp4"
                                 }}
                             />
+
+                            <SidebarTool
+                                icon="solar:subtitles-bold"
+                                label={t("tools.captions")}
+                                isActive={activeTool === "captions"}
+                                onClick={() => onToolChange("captions")}
+                                popover={{
+                                    title: "Subtítulos cinematográficos",
+                                    description: "Agrega subtítulos premium con estilos visuales listos para demos y exportación.",
+                                    videoSrc: "/videos/preview-cursor.mp4"
+                                }}
+                            />
                         </>
                     )}
                     <div className="shrink-0 h-12" aria-hidden="true" />
