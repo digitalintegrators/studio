@@ -3,6 +3,7 @@ import type { AudioTrack, UploadedAudio } from "./audio.types";
 import type { VideoTrackClip } from "./video-track.types";
 import type { SpotlightFragment } from "./spotlight.types";
 import type { EditableMaskFragment } from "./mask-fragment.types";
+import type { CaptionSegment } from "./caption.types";
 
 export interface TrimRange {
     start: number;
@@ -47,6 +48,11 @@ export interface TimelineProps {
     onUpdateMaskFragment?: (fragmentId: string, updates: Partial<EditableMaskFragment>) => void;
     onDuplicateMaskFragment?: (fragment: EditableMaskFragment) => void;
     effectInsertMode?: "spotlight" | "mask";
+    // Captions props
+    captionSegments?: CaptionSegment[];
+    selectedCaptionSegmentId?: string | null;
+    onSelectCaptionSegment?: (segmentId: string | null) => void;
+    onUpdateCaptionSegment?: (segmentId: string, updates: Partial<CaptionSegment>) => void;
     // Audio props
     audioTracks?: AudioTrack[];
     uploadedAudios?: UploadedAudio[];
