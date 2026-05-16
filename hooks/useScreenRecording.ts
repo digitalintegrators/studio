@@ -552,6 +552,9 @@ export function useScreenRecording() {
   const captionFinalEndRef = useRef<number>(0);
   const captionInterimTextRef = useRef<string>("");
   const captionLastTextRef = useRef<string>("");
+  const captionRunningTranscriptRef = useRef<string>("");
+  const captionCommittedTranscriptRef = useRef<string>("");
+  const captionLastSegmentAtRef = useRef<number>(0);
 
   useEffect(() => {
     stateRef.current = state;
@@ -641,6 +644,9 @@ export function useScreenRecording() {
     captionFinalEndRef.current = 0;
     captionInterimTextRef.current = "";
     captionLastTextRef.current = "";
+    captionRunningTranscriptRef.current = "";
+    captionCommittedTranscriptRef.current = "";
+    captionLastSegmentAtRef.current = 0;
 
     if (!enabled) return;
 
@@ -661,48 +667,95 @@ export function useScreenRecording() {
       captionRecognitionActiveRef.current = true;
 
       recognition.onresult = (event) => {
-        for (
-          let index = event.resultIndex;
-          index < event.results.length;
-          index += 1
-        ) {
+        const pieces: string[] = [];
+        let hasFinalResult = false;
+
+        for (let index = 0; index < event.results.length; index += 1) {
           const result = event.results[index];
           const alternative = result?.[0];
           const text = cleanCaptionText(alternative?.transcript ?? "");
 
           if (!text) continue;
 
-          if (!result?.isFinal) {
-            captionInterimTextRef.current = text;
-            continue;
+          pieces.push(text);
+
+          if (result?.isFinal) {
+            hasFinalResult = true;
           }
-
-          if (text === captionLastTextRef.current) {
-            captionInterimTextRef.current = "";
-            continue;
-          }
-
-          const endTime = Math.max(
-            0.1,
-            (Date.now() - startTimeRef.current) / 1000,
-          );
-          const segment = createLocalCaptionSegment({
-            text,
-            endTime,
-            previousEndTime: captionFinalEndRef.current,
-            source: "final",
-          });
-
-          if (!segment) continue;
-
-          localCaptionSegmentsRef.current.push(segment);
-          captionFinalEndRef.current = Math.max(
-            captionFinalEndRef.current,
-            segment.endTime,
-          );
-          captionLastTextRef.current = text;
-          captionInterimTextRef.current = "";
         }
+
+        const eventTranscript = cleanCaptionText(pieces.join(" "));
+
+        if (!eventTranscript) return;
+
+        const currentRunning = cleanCaptionText(
+          captionRunningTranscriptRef.current,
+        );
+
+        // En Chrome, event.results suele ser acumulativo dentro de la sesión.
+        // Cuando el reconocimiento se reinicia por silencio, puede volver a empezar desde cero.
+        // Por eso preservamos lo ya capturado y anexamos solo cuando el evento no contiene el histórico.
+        let fullTranscript = eventTranscript;
+
+        if (currentRunning) {
+          if (eventTranscript.startsWith(currentRunning)) {
+            fullTranscript = eventTranscript;
+          } else if (currentRunning.includes(eventTranscript)) {
+            fullTranscript = currentRunning;
+          } else {
+            fullTranscript = cleanCaptionText(
+              `${currentRunning} ${eventTranscript}`,
+            );
+          }
+        }
+
+        captionRunningTranscriptRef.current = fullTranscript;
+
+        const committedTranscript = cleanCaptionText(
+          captionCommittedTranscriptRef.current,
+        );
+
+        let pendingText = fullTranscript;
+
+        if (
+          committedTranscript &&
+          fullTranscript.startsWith(committedTranscript)
+        ) {
+          pendingText = cleanCaptionText(
+            fullTranscript.slice(committedTranscript.length),
+          );
+        }
+
+        captionInterimTextRef.current = pendingText;
+
+        if (!hasFinalResult || !pendingText) return;
+
+        const now = Date.now();
+
+        // Evita generar demasiados segmentos por micro-resultados.
+        // Si el navegador va finalizando palabra a palabra, acumulamos y esperamos una pausa corta.
+        if (now - captionLastSegmentAtRef.current < 900) return;
+
+        const endTime = Math.max(0.1, (now - startTimeRef.current) / 1000);
+
+        const segment = createLocalCaptionSegment({
+          text: pendingText,
+          endTime,
+          previousEndTime: captionFinalEndRef.current,
+          source: "final",
+        });
+
+        if (!segment) return;
+
+        localCaptionSegmentsRef.current.push(segment);
+        captionFinalEndRef.current = Math.max(
+          captionFinalEndRef.current,
+          segment.endTime,
+        );
+        captionCommittedTranscriptRef.current = fullTranscript;
+        captionLastTextRef.current = pendingText;
+        captionInterimTextRef.current = "";
+        captionLastSegmentAtRef.current = now;
       };
 
       recognition.onerror = () => {
@@ -735,12 +788,25 @@ export function useScreenRecording() {
   const stopLocalCaptionRecognition = useCallback(() => {
     captionRecognitionActiveRef.current = false;
 
-    const pendingInterimText = cleanCaptionText(captionInterimTextRef.current);
+    const runningTranscript = cleanCaptionText(
+      captionRunningTranscriptRef.current,
+    );
+    const committedTranscript = cleanCaptionText(
+      captionCommittedTranscriptRef.current,
+    );
+
+    let pendingInterimText = cleanCaptionText(captionInterimTextRef.current);
 
     if (
-      pendingInterimText &&
-      pendingInterimText !== captionLastTextRef.current
+      runningTranscript &&
+      runningTranscript.startsWith(committedTranscript)
     ) {
+      pendingInterimText = cleanCaptionText(
+        runningTranscript.slice(committedTranscript.length),
+      );
+    }
+
+    if (pendingInterimText) {
       const endTime = Math.max(0.1, (Date.now() - startTimeRef.current) / 1000);
       const segment = createLocalCaptionSegment({
         text: pendingInterimText,
@@ -756,10 +822,15 @@ export function useScreenRecording() {
           segment.endTime,
         );
         captionLastTextRef.current = pendingInterimText;
+        captionCommittedTranscriptRef.current =
+          runningTranscript || pendingInterimText;
       }
     }
 
     captionInterimTextRef.current = "";
+    captionRunningTranscriptRef.current = "";
+    captionCommittedTranscriptRef.current = "";
+    captionLastSegmentAtRef.current = 0;
 
     const recognition = captionRecognitionRef.current;
     captionRecognitionRef.current = null;
@@ -1150,6 +1221,9 @@ export function useScreenRecording() {
     localCaptionSegmentsRef.current = [];
     captionInterimTextRef.current = "";
     captionLastTextRef.current = "";
+    captionRunningTranscriptRef.current = "";
+    captionCommittedTranscriptRef.current = "";
+    captionLastSegmentAtRef.current = 0;
     stopLocalCaptionRecognition();
 
     setRecordingTime(0);
