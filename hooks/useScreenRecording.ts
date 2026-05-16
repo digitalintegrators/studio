@@ -5,6 +5,8 @@ import { useRouter, usePathname } from "@/navigation";
 import type { RecordingState } from "@/types";
 import type { CameraConfig, RecordingSetupConfig } from "@/types/camera.types";
 import type { CursorRecordingData, CursorKeyframe } from "@/types/cursor.types";
+import type { CaptionSegment } from "@/types/caption.types";
+import { createCaptionWords } from "@/types/caption.types";
 
 import {
   DEFAULT_RECORDING_SETUP,
@@ -118,6 +120,7 @@ async function saveVideoToIndexedDB(
     cameraBlob?: Blob | null;
     cameraConfig?: CameraConfig | null;
     cursorData?: CursorRecordingData | null;
+    localCaptions?: CaptionSegment[] | null;
   } = {}
 ): Promise<string> {
   const videoId = generateVideoId();
@@ -136,6 +139,7 @@ async function saveVideoToIndexedDB(
       cameraBlob: extras.cameraBlob ?? null,
       cameraConfig: extras.cameraConfig ?? null,
       cursorData: extras.cursorData ?? null,
+      localCaptions: extras.localCaptions ?? null,
     };
 
     store.put(videoData, videoId);
@@ -175,6 +179,7 @@ export async function loadVideoFromIndexedDB(): Promise<{
   cameraUrl?: string | null;
   cameraConfig?: CameraConfig | null;
   cursorData?: CursorRecordingData | null;
+  localCaptions?: CaptionSegment[] | null;
 } | null> {
   try {
     const db = await getDB();
@@ -208,6 +213,7 @@ export async function loadVideoFromIndexedDB(): Promise<{
             cameraUrl: cameraBlob ? URL.createObjectURL(cameraBlob) : null,
             cameraConfig: currentData.cameraConfig ?? null,
             cursorData: currentData.cursorData ?? null,
+            localCaptions: Array.isArray(currentData.localCaptions) ? currentData.localCaptions : null,
           });
           return;
         }
@@ -245,6 +251,7 @@ export async function loadVideoFromIndexedDB(): Promise<{
             cameraUrl: cameraBlob ? URL.createObjectURL(cameraBlob) : null,
             cameraConfig: data.cameraConfig ?? null,
             cursorData: data.cursorData ?? null,
+            localCaptions: Array.isArray(data.localCaptions) ? data.localCaptions : null,
           });
         };
 
@@ -394,6 +401,73 @@ async function buildFinalScreenStream(params: {
   }
 }
 
+
+type SpeechRecognitionResultItem = {
+  transcript: string;
+};
+
+type SpeechRecognitionAlternativeList = {
+  readonly length: number;
+  item(index: number): SpeechRecognitionResultItem;
+  [index: number]: SpeechRecognitionResultItem;
+};
+
+type SpeechRecognitionResultLike = {
+  readonly isFinal: boolean;
+  readonly length: number;
+  item(index: number): SpeechRecognitionResultItem;
+  [index: number]: SpeechRecognitionResultItem;
+};
+
+type SpeechRecognitionResultListLike = {
+  readonly length: number;
+  item(index: number): SpeechRecognitionResultLike;
+  [index: number]: SpeechRecognitionResultLike;
+};
+
+type SpeechRecognitionEventLike = Event & {
+  resultIndex: number;
+  results: SpeechRecognitionResultListLike;
+};
+
+type SpeechRecognitionLike = EventTarget & {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: Event) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+  abort?: () => void;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+type WindowWithSpeechRecognition = Window &
+  typeof globalThis & {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  };
+
+function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | null {
+  if (typeof window === "undefined") return null;
+
+  const speechWindow = window as WindowWithSpeechRecognition;
+  return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition ?? null;
+}
+
+function cleanCaptionText(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function estimateCaptionStart(text: string, endTime: number, previousEndTime: number): number {
+  const wordCount = Math.max(1, cleanCaptionText(text).split(/\s+/).filter(Boolean).length);
+  const estimatedDuration = Math.min(5.5, Math.max(1.2, wordCount * 0.38));
+  return Math.max(previousEndTime, Math.max(0, endTime - estimatedDuration));
+}
+
 export function useScreenRecording() {
   const [state, setState] = useState<RecordingState>("idle");
   const [countdown, setCountdown] = useState<number>(0);
@@ -424,6 +498,11 @@ export function useScreenRecording() {
 
   const cursorFramesRef = useRef<CursorKeyframe[]>([]);
   const cursorTrackingCleanupRef = useRef<(() => void) | null>(null);
+
+  const localCaptionSegmentsRef = useRef<CaptionSegment[]>([]);
+  const captionRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const captionRecognitionActiveRef = useRef<boolean>(false);
+  const captionFinalEndRef = useRef<number>(0);
 
   useEffect(() => {
     stateRef.current = state;
@@ -507,6 +586,99 @@ export function useScreenRecording() {
     cursorTrackingCleanupRef.current = null;
   }, []);
 
+
+  const startLocalCaptionRecognition = useCallback((enabled: boolean) => {
+    localCaptionSegmentsRef.current = [];
+    captionFinalEndRef.current = 0;
+
+    if (!enabled) return;
+
+    const Recognition = getSpeechRecognitionConstructor();
+
+    if (!Recognition) {
+      console.info("Subtítulos locales no disponibles en este navegador.");
+      return;
+    }
+
+    try {
+      const recognition = new Recognition();
+      recognition.lang = "es-ES";
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 1;
+
+      captionRecognitionActiveRef.current = true;
+
+      recognition.onresult = (event) => {
+        for (let index = event.resultIndex; index < event.results.length; index += 1) {
+          const result = event.results[index];
+          const alternative = result?.[0];
+          const text = cleanCaptionText(alternative?.transcript ?? "");
+
+          if (!text || !result?.isFinal) continue;
+
+          const endTime = Math.max(0.1, (Date.now() - startTimeRef.current) / 1000);
+          const startTime = estimateCaptionStart(text, endTime, captionFinalEndRef.current);
+          const segmentId = `caption-local-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`;
+
+          localCaptionSegmentsRef.current.push({
+            id: segmentId,
+            startTime,
+            endTime: Math.max(startTime + 0.6, endTime),
+            text,
+            words: createCaptionWords(text, startTime, Math.max(startTime + 0.6, endTime), segmentId),
+          });
+
+          captionFinalEndRef.current = Math.max(captionFinalEndRef.current, endTime);
+        }
+      };
+
+      recognition.onerror = () => {
+        // El navegador puede cortar reconocimiento por silencio/permisos. La grabación debe continuar.
+      };
+
+      recognition.onend = () => {
+        if (!captionRecognitionActiveRef.current || stateRef.current !== "recording") return;
+
+        try {
+          recognition.start();
+        } catch {
+          // Algunos navegadores bloquean reinicios muy rápidos. No debe romper la grabación.
+        }
+      };
+
+      captionRecognitionRef.current = recognition;
+      recognition.start();
+    } catch (error) {
+      console.warn("No se pudo iniciar subtitulado local:", error);
+      captionRecognitionRef.current = null;
+      captionRecognitionActiveRef.current = false;
+    }
+  }, []);
+
+  const stopLocalCaptionRecognition = useCallback(() => {
+    captionRecognitionActiveRef.current = false;
+
+    const recognition = captionRecognitionRef.current;
+    captionRecognitionRef.current = null;
+
+    if (!recognition) return;
+
+    recognition.onend = null;
+    recognition.onresult = null;
+    recognition.onerror = null;
+
+    try {
+      recognition.stop();
+    } catch {
+      try {
+        recognition.abort?.();
+      } catch {
+        // ignore
+      }
+    }
+  }, []);
+
   const cleanupStreams = useCallback(() => {
     screenStreamRef.current?.getTracks().forEach((track) => track.stop());
     rawScreenStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -525,7 +697,8 @@ export function useScreenRecording() {
 
     setCameraStream(null);
     stopCursorTracking();
-  }, [stopCursorTracking]);
+    stopLocalCaptionRecognition();
+  }, [stopCursorTracking, stopLocalCaptionRecognition]);
 
   const stopRecording = useCallback(() => {
     const screenRecorder = screenRecorderRef.current;
@@ -548,13 +721,16 @@ export function useScreenRecording() {
     (screenStream: MediaStream, camStream: MediaStream | null) => {
       try {
         cursorFramesRef.current = [];
-        startCursorTracking();
+        localCaptionSegmentsRef.current = [];
+        captionFinalEndRef.current = 0;
 
         screenChunksRef.current = [];
         cameraChunksRef.current = [];
         setRecordingTime(0);
 
         startTimeRef.current = Date.now();
+        startCursorTracking();
+        startLocalCaptionRecognition(Boolean(micStreamRef.current?.getAudioTracks().length));
 
         const screenMime =
           pickSupportedMimeType([
@@ -630,6 +806,7 @@ export function useScreenRecording() {
           const videoTrackSettings = screenStream.getVideoTracks()[0]?.getSettings();
 
           stopCursorTracking();
+          stopLocalCaptionRecognition();
 
           const cursorData: CursorRecordingData = {
             hasCursorData: cursorFramesRef.current.length > 0,
@@ -651,6 +828,7 @@ export function useScreenRecording() {
                 cameraBlob,
                 cameraConfig: cameraConfigRef.current,
                 cursorData,
+                localCaptions: localCaptionSegmentsRef.current,
               }
             );
 
@@ -726,7 +904,9 @@ export function useScreenRecording() {
       pathname,
       cleanupStreams,
       startCursorTracking,
+      startLocalCaptionRecognition,
       stopCursorTracking,
+      stopLocalCaptionRecognition,
       stopRecording,
     ]
   );
@@ -855,11 +1035,13 @@ export function useScreenRecording() {
     screenChunksRef.current = [];
     cameraChunksRef.current = [];
     cursorFramesRef.current = [];
+    localCaptionSegmentsRef.current = [];
+    stopLocalCaptionRecognition();
 
     setRecordingTime(0);
     setState("idle");
     setCameraConfig(null);
-  }, [cleanupStreams, stopRecording]);
+  }, [cleanupStreams, stopLocalCaptionRecognition, stopRecording]);
 
   return {
     state,
@@ -876,5 +1058,6 @@ export function useScreenRecording() {
     cameraStream,
     cameraConfig,
     updateCameraConfig,
+    localCaptionsSupported: Boolean(getSpeechRecognitionConstructor()),
   };
 }
