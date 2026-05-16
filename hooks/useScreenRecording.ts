@@ -482,7 +482,7 @@ function estimateCaptionStart(
     1,
     cleanCaptionText(text).split(/\s+/).filter(Boolean).length,
   );
-  const estimatedDuration = Math.min(5.5, Math.max(1.2, wordCount * 0.38));
+  const estimatedDuration = Math.min(5.2, Math.max(1.0, wordCount * 0.34));
   return Math.max(previousEndTime, Math.max(0, endTime - estimatedDuration));
 }
 
@@ -903,9 +903,6 @@ export function useScreenRecording() {
 
         startTimeRef.current = Date.now();
         startCursorTracking();
-        startLocalCaptionRecognition(
-          Boolean(micStreamRef.current?.getAudioTracks().length),
-        );
 
         const screenMime =
           pickSupportedMimeType([
@@ -1071,6 +1068,9 @@ export function useScreenRecording() {
           startTimeRef.current = Date.now();
           screenRecorder.start(1000);
           cameraRecorder?.start(1000);
+          startLocalCaptionRecognition(
+            Boolean(micStreamRef.current?.getAudioTracks().length),
+          );
         }, 300);
       } catch (err) {
         console.error("Error al iniciar grabación:", err);
